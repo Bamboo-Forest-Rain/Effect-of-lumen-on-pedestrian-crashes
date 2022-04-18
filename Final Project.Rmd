@@ -28,11 +28,11 @@ Street_Poles_Data <- st_read("https://opendata.arcgis.com/datasets/9059a7546b6a4
 
 Street_Poles_Lumen <- Street_Poles_Data %>% select(LUM_SIZE) %>% na.omit()
 
-# Philly Census
+# Philly Block Group Census
 Philly_Census <- get_acs(geography = "block group",
                          state = 42,
                          county = 101,
-                         year = 2019,
+                         year = 2020,
                          geometry = TRUE,
                          variable = "B19013_001")
           
