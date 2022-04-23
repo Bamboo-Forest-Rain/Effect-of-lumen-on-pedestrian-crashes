@@ -13,8 +13,36 @@ library(tidyverse)
 library(ggplot2)
 library(mapview)
 library(lubridate)
+library(RSocrata)
+library(mapview)
+library(ggcorrplot)
+library(viridis)
+library(extrafont)
+font_import()
+loadfonts(device = "win")
 
 census_api_key("94efffd19b56ad527e379faea1653ee74dc3de4a",overwrite = TRUE)
+
+theme_map <- function(...) {
+  theme_minimal() +
+  theme(
+    text = element_text(family = "Poppins", color = "#22211d"),
+    axis.line = element_blank(),
+    axis.text.x = element_blank(),
+    axis.text.y = element_blank(),
+    axis.ticks = element_blank(),
+    axis.title.x = element_blank(),
+    axis.title.y = element_blank(),
+    panel.grid.major = element_line(color = "#ebebe5", size = 0.2),
+    panel.grid.minor = element_blank(),
+    plot.background = element_rect(fill = "#f5f5f2", color = NA), 
+    panel.background = element_rect(fill = "#f5f5f2", color = NA), 
+    legend.background = element_rect(fill = "#f5f5f2", color = NA),
+    panel.border = element_blank(),
+    ...
+  )
+}
+
 ```
 
 # Introduction
@@ -26,7 +54,7 @@ census_api_key("94efffd19b56ad527e379faea1653ee74dc3de4a",overwrite = TRUE)
 #Philly Street Light Poles
 Street_Poles_Data <- st_read("https://opendata.arcgis.com/datasets/9059a7546b6a4d658bef9ce9c84e4b03_0.geojson") 
 
-Street_Poles_Lumen <- Street_Poles_Data %>% select(LUM_SIZE) %>% na.omit()
+Street_Poles_Lumen <- Street_Poles_Data %>% select(LUM_SIZE) %>% na.omit() %>% st_transform(crs = 4326)
 
 # Philly Block Group Census
 Philly_Census <- get_acs(geography = "block group",
@@ -34,9 +62,59 @@ Philly_Census <- get_acs(geography = "block group",
                          county = 101,
                          year = 2020,
                          geometry = TRUE,
+<<<<<<< HEAD
+                         variable =(c(Pop = "B19013_001",
+                                      PopBelow5M = "B01001_003",
+                                      Pop_5_9M = "B01001_004",
+                                      PopBeloq5F = "B01001_027",
+                                      Pop_5_9F = "B01001_028")))
+
+Philly_Pop_Above60 <- get_acs(geography = "block group",
+                         state = 42,
+                         county = 101,
+                         year = 2020,
+                         geometry = TRUE,
+                         variable =(c("B01001_018"	,
+                                      "B01001_019"	,
+                                      "B01001_020"	,
+                                      "B01001_021"	,
+                                      "B01001_022"	,
+                                      "B01001_023"	,
+                                      "B01001_024"	,
+                                      "B01001_025",
+                                      "B01001_042"	,
+                                      "B01001_043"	,
+                                      "B01001_044"	,
+                                      "B01001_045"	,
+                                      "B01001_046"	,
+                                      "B01001_047"	,
+                                      "B01001_048"	,
+                                      "B01001_049"	)))
+
+Philly_commute <- get_acs(geography = "block group",
+                         state = 42,
+                         county = 101,
+                         year = 2020,
+                         geometry = TRUE,
+                         variable =(c(Bike	=	"B08006_014"	,
+                                      Walk	=	"B08006_015"	,
+                                      Public_Trans	=	"B08006_008")))
+
+Philly_Race <- get_acs(geography = "block group",
+                         state = 42,
+                         county = 101,
+                         year = 2020,
+                         geometry = TRUE,
+                         variable =(c(Bike	=	"B08006_014"	,
+                                      Walk	=	"B08006_015"	,
+                                     Public_Trans	=	"B08006_008")))
+
+# 311 Report
+=======
                          variable = "B19013_001")
           
 
+>>>>>>> parent of 1ffc103 (more codes)
 Report_311_2020 <-
   read.csv("public_cases_2020.csv")%>%
   filter(service_name=="Street Light Outage")
@@ -49,23 +127,31 @@ Report_311_2018 <-
   read.csv("public_cases_fc_2018.csv") %>%
   filter(service_name=="Street Light Outage")
 
-Report_light_out <-
+Report_light_out_full <-
   rbind(Report_311_2018,Report_311_2019,Report_311_2020)%>%na.omit %>%
   st_as_sf(coords = c("lon","lat"),crs = 4326) %>%
   distinct(updated_datetime, .keep_all = T) 
 
+#Open Case with lumen
+Report_light_out_open <-
+  Report_light_out_full %>%
+  filter(status == "Open")
+
+# Crash Data between 2018 - 2020
 Crash <-
   st_read("https://opendata.arcgis.com/api/v3/datasets/e703eb63ec484aa6beae1268372efa53_0/downloads/data?format=geojson&spatialRefId=4326")
 
 head(Crash)
 
-Crash_Ped_PennDot <-
+Crash_Ped <-
   Crash %>%
   filter(PED_COUNT > 0)
 
-Crash_Ped_PennDot$HOUR_OF_DA <- as.character(Crash_Ped_PennDot$HOUR_OF_DA)
+Crash_Ped$HOUR_OF_DA <- as.character(Crash_Ped$HOUR_OF_DA)
 
-Crash_Ped_PennDot %>%
+# Hour of crashes
+
+Crash_Ped %>%
   mutate(HOUR_DA_FACTOR = factor(HOUR_OF_DA, levels = c(as.character(seq(0,24)))))%>%
   group_by(HOUR_DA_FACTOR)%>%
   tally()%>%
@@ -73,12 +159,16 @@ Crash_Ped_PennDot %>%
   summarise(SUM_HOUR = sum(n)) %>%
   filter(!HOUR_DA_FACTOR == "99")%>%
 ggplot(aes(HOUR_DA_FACTOR, SUM_HOUR, fill=HOUR_DA_FACTOR)) + 
-         geom_bar(position = "dodge", stat = "summary", fun.y = "mean") 
+         geom_bar(position = "dodge", stat = "summary", fun.y = "mean")+ xlab("Hour of the day") + ylab("Total Crash") + labs(title = "Pedestrian crashes by hours between 2016 - 2020")+ theme_minimal()
 
-Crash_Ped_PennDot$HOUR_OF_DA <- as.numeric(Crash_Ped_PennDot$HOUR_OF_DA)
+```
+
+```{r catagorical}
+#Pedestrian crashes by time of the day
+Crash_Ped$HOUR_OF_DA <- as.numeric(Crash_Ped$HOUR_OF_DA)
 
 Crash_Ped_PennDot_sum <-
-  Crash_Ped_PennDot %>%
+  Crash_Ped %>%
   mutate(TIME_OF_DAY = case_when(HOUR_OF_DA < 7 | HOUR_OF_DA > 18 ~ "Overnight",
                                  HOUR_OF_DA >= 7 & HOUR_OF_DA < 10 ~ "AM Rush",
                                  HOUR_OF_DA >= 10 & HOUR_OF_DA < 15 ~ "Mid-Day",
@@ -91,10 +181,16 @@ Crash_Ped_PennDot_sum <-
 
 Crash_Ped_PennDot_sum %>%
   ggplot(aes(TIME_OF_DAY, sum_crash, fill = TIME_OF_DAY))+
-  geom_bar(position = "dodge", stat = "summary", fun.y = "mean")
+  geom_bar(position = "dodge", stat = "summary", fun.y = "mean") + xlab("Time of the day")+ylab("Total Crash Counts") + labs(title = "Pedestrian Crashes by Time of the Day") + theme_minimal()
+
+```
+
+```{r}
+
+#Fatal Pedestrian Crashes by time of the day
 
 Crash_Ped_PennDot_Fatal <-
-  Crash_Ped_PennDot %>%
+  Crash_Ped %>%
   filter(FATAL_COUN > 0)
 
 Crash_Ped_PennDot_Fatal_sum <-
@@ -111,28 +207,12 @@ Crash_Ped_PennDot_Fatal %>%
 
 Crash_Ped_PennDot_Fatal_sum %>%
   ggplot(aes(TIME_OF_DAY, sum_crash, fill = TIME_OF_DAY))+
-  geom_bar(position = "dodge", stat = "summary", fun.y = "mean")
+  geom_bar(position = "dodge", stat = "summary", fun.y = "mean") + xlab("Time of the day")+ylab("Total Crash Counts") + labs(title = "Fatal Pedestrian Crashes by Time of the Day")+theme_minimal()
 
-Crash_Ped_PennDot_Fatal_overnight <-
-  Crash_Ped_PennDot_Fatal %>%
-  mutate(TIME_OF_DAY = case_when(HOUR_OF_DA < 7 | HOUR_OF_DA > 18 ~ "Overnight",
-                                 HOUR_OF_DA >= 7 & HOUR_OF_DA < 10 ~ "AM Rush",
-                                 HOUR_OF_DA >= 10 & HOUR_OF_DA < 15 ~ "Mid-Day",
-                                 HOUR_OF_DA >= 15 & HOUR_OF_DA <= 18 ~ "PM Rush"))%>%
-  filter(TIME_OF_DAY=="Overnight")%>%
-  group_by(ILLUMINATI)%>%
-  tally()%>%
-  group_by(ILLUMINATI)%>%
-  summarize(ILLUMINATI_SUM = sum(n))%>%
-  mutate(pct_ill = ILLUMINATI_SUM/sum(ILLUMINATI_SUM) * 100)
+```
 
-Crash_Ped_PennDot_Fatal_overnight$ILLUMINATI <- as.character(Crash_Ped_PennDot_Fatal_overnight$ILLUMINATI)
-
-Crash_Ped_PennDot_Fatal_overnight %>%
-  ggplot(aes(ILLUMINATI,ILLUMINATI_SUM,fill=ILLUMINATI))+
-  geom_bar(position = "dodge", stat = "summary", fun.y = "mean")
-  
-  Crash_Fatal_PennDot <-
+```{r}
+Crash_Fatal_PennDot <-
   Crash%>%
   filter(FATAL_COUN > 0)
 
@@ -143,20 +223,60 @@ Fatal_Crash2 <-
   Fatal_Crash %>%
   mutate(interval60 = floor_date(ymd_hms(DATE_), unit = "hour"))
 
-filter 
+```
+
+```{r}
+
+#Mapping out Lumens in Philly
+p <- ggplot()+
+  geom_sf(data = Philly_Pop_AgeBelow10,color = "grey30")+
+  geom_sf(data = Street_Poles_Lumen, aes(color = LUM_SIZE),alpha=0.5) +  labs(x = NULL, 
+         y = NULL, 
+         title = "Light Brightness by Lumen in Philadelphia", 
+         caption = "Open Data Philly",
+          color = "Lumens")
+
+p + scale_color_viridis_b()+theme_map()
+
+#Mapping out dis-functioning lights
+
+lum_0 <-
+  Street_Poles_Lumen %>%
+  filter(LUM_SIZE == 0) 
+
+lum_0_geo <-
+  lum_0 %>%
+  select(geometry)
+
+disfunction_light_geo <-
+  Report_light_out_open %>%
+  select(geometry) %>%
+  rbind(.,lum_0_geo)
+
 ggplot()+
-  geom_sf(data = Philly_Census,color = "grey30")+
-  geom_sf(data = Street_Poles, aes(color = LUM_SIZE))
+  geom_sf(data = Philly_Pop_AgeBelow10,color = "grey30")+
+  geom_sf(data = Street_Poles_Lumen,color = "seagreen",alpha=0.8) +  
+  geom_sf(data = disfunction_light_geo,color = "red", alpha = 0.5 ) +
+  labs(x = NULL, 
+         y = NULL, 
+         title = "Disfunctioning light in Philly", 
+         caption = "Open Data Philly",
+          color = "Lumens")
 
-glimpse(Street_Poles)
-
-unique(Report_311_2018$service_name)
-
-ggplot(street_poles, x=)+
-  geom_sf(data = Street_Poles)
+```
+```{r}
+Philly_boundary <-
+  st_read
 
 
-taxi drop-off as transit grows
+fishnet <- 
+  st_make_grid(Philly_Pop_Above60,
+               cellsize = 500, 
+               square = TRUE) %>%
+  .[Philly_Pop_Above60] %>%            
+  st_sf() %>%
+  mutate(uniqueID = rownames(.))
+
 ```
 
 ## Including Plots
