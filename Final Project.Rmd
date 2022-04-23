@@ -62,7 +62,7 @@ Philly_Census <- get_acs(geography = "block group",
                          county = 101,
                          year = 2020,
                          geometry = TRUE,
-<<<<<<< HEAD
+                         output="wide",
                          variable =(c(Pop = "B19013_001",
                                       PopBelow5M = "B01001_003",
                                       Pop_5_9M = "B01001_004",
@@ -74,6 +74,7 @@ Philly_Pop_Above60 <- get_acs(geography = "block group",
                          county = 101,
                          year = 2020,
                          geometry = TRUE,
+                         output = "wide",
                          variable =(c("B01001_018"	,
                                       "B01001_019"	,
                                       "B01001_020"	,
@@ -91,28 +92,18 @@ Philly_Pop_Above60 <- get_acs(geography = "block group",
                                       "B01001_048"	,
                                       "B01001_049"	)))
 
-Philly_commute <- get_acs(geography = "block group",
+Philly_commute <- get_acs(geography = "tract",
                          state = 42,
                          county = 101,
+                         output = "wide",
                          year = 2020,
                          geometry = TRUE,
                          variable =(c(Bike	=	"B08006_014"	,
                                       Walk	=	"B08006_015"	,
                                       Public_Trans	=	"B08006_008")))
 
-Philly_Race <- get_acs(geography = "block group",
-                         state = 42,
-                         county = 101,
-                         year = 2020,
-                         geometry = TRUE,
-                         variable =(c(Bike	=	"B08006_014"	,
-                                      Walk	=	"B08006_015"	,
-                                     Public_Trans	=	"B08006_008")))
-
-# 311 Report
-=======
-                         variable = "B19013_001")
-          
+Philly_Race <- read.csv("2020Census.csv")
+Philly_Race$GEO_ID<-gsub("1500000US","",as.character(Philly_Race$GEO_ID))
 
 >>>>>>> parent of 1ffc103 (more codes)
 Report_311_2020 <-
@@ -127,8 +118,16 @@ Report_311_2018 <-
   read.csv("public_cases_fc_2018.csv") %>%
   filter(service_name=="Street Light Outage")
 
+Report_311_2017 <-
+  read.csv("public_cases_fc_2017.csv") %>%
+  filter(service_name=="Street Light Outage")
+
+Report_311_2016 <-
+  read.csv("public_cases_fc_2016.csv") %>%
+  filter(service_name=="Street Light Outage")
+
 Report_light_out_full <-
-  rbind(Report_311_2018,Report_311_2019,Report_311_2020)%>%na.omit %>%
+  rbind(Report_311_2018,Report_311_2019,Report_311_2020,Report_311_2017,Report_311_2016)%>%na.omit %>%
   st_as_sf(coords = c("lon","lat"),crs = 4326) %>%
   distinct(updated_datetime, .keep_all = T) 
 
@@ -281,9 +280,10 @@ fishnet <-
 
 #Light in Fishnet
 light_net <- 
-  Street_Poles_Lumen %>% 
+  Street_Poles_Lumen %>%
   st_transform('ESRI:102271')%>%
   filter(!LUM_SIZE == 0)%>%
+  select(-LUM_SIZE) %>%
   mutate(countLight = 1) %>% 
   aggregate(., fishnet, sum) %>%
   mutate(countLight = replace_na(countLight, 0),
@@ -294,12 +294,272 @@ light_net <-
 #Light Count in each fishnet cell
 ggplot() +
   geom_sf(data = light_net, aes(fill = countLight), color = NA) +
-  scale_fill_viridis() +
+  scale_fill_viridis_b() +
   labs(title = "Street Light Pole Count in each Fishnet Cell", Legend = "Street Pole Count", caption="Fig.2") +
   theme_map()
+```
+
+```{r data cleaning}
+
+Agg_age_below_10 <-
+  Philly_Census %>%
+  mutate(Age_below_10 = PopBelow5ME + Pop_5_9ME + PopBeloq5FE +Pop_5_9FE)%>%
+  select(-ends_with("M"),-ends_with("E"))%>%
+  st_transform('ESRI:102271')%>%
+  mutate(Legend = "Below10") %>%
+  rename(Count = Age_below_10)%>%
+  select(GEOID,Count,Legend) %>%
+  st_drop_geometry()
+
+
+Agg_above_60 <-
+  Philly_Pop_Above60 %>%
+  mutate(Age_Above60 = B01001_018E + B01001_019E +
+                                      B01001_020E+                
+                                      B01001_021E +
+                                      B01001_022E +
+                                      B01001_023E+
+                                      B01001_024E+
+                                      B01001_025E+
+                                      B01001_042E+
+                                      B01001_043E+
+                                      B01001_044E+
+                                      B01001_045E+
+                                      B01001_046E+
+                                      B01001_047E+
+                                      B01001_048E+
+                                      B01001_049E)%>%
+  select(GEOID,geometry,Age_Above60) %>%
+  st_transform('ESRI:102271')%>%
+  mutate(Legend = "Above60") %>%
+  rename(Count = Age_Above60)%>%
+  select(GEOID,Count,Legend) %>%
+  st_drop_geometry()
+
+No_car_commute <- 
+  Philly_commute %>%
+  mutate(Non_auto_commute = BikeE, Public_TransE, WalkE) %>%
+  select(geometry, Non_auto_commute, GEOID) %>%
+  st_transform('ESRI:102271') %>%
+  mutate(Legend = "NoCar") %>%
+  rename(Count = Non_auto_commute)%>%
+  select(GEOID,Count,Legend) %>%
+    st_drop_geometry()
+  
+
+#Crash Count in each block Group
+
+block_geo <-
+  Agg_above_60 %>%
+  select(geometry,GEOID)
+
+Crash_geo <-
+Crash_Ped %>%
+  select(geometry) %>%
+  st_transform('ESRI:102271')%>%
+  mutate(CrashCount1 = 1) 
+
+Crash_geoid <-
+  st_join(Crash_geo, Agg_above_60,join=st_within)%>%
+  select(-Age_Above60)%>%
+  st_drop_geometry()%>%
+  group_by(GEOID)%>%
+  summarize(CrashCount = sum(CrashCount1))%>%
+  left_join(.,block_geo) %>%
+  st_as_sf()%>%
+  st_transform(st_crs = fishnet)
+
+ggplot()+
+  geom_sf(data = Philly_boundary)+
+  geom_sf(data = Crash_geoid, aes(fill = CrashCount))+
+  scale_fill_viridis(option = "B", direction = -1)
+
+Crash_geoid2 <-
+  Crash_geoid %>%
+  st_drop_geometry()%>%
+  mutate(Legend = "Crash") %>%
+  rename(Count = CrashCount)%>%
+  select(GEOID,Count,Legend)
 
 ```
 
+```{r Tree}
+Tree <-
+read.csv("PPR_Tree_Inventory_2021.csv")%>%
+  st_as_sf(coords = c("LOC_X","LOC_Y"),crs = 4326) 
 
+Tree_geo <-
+Tree %>%
+  select(geometry) %>%
+  mutate(TreeCount1 = 1)
+
+Agg_above_60_4326 <-
+  Agg_above_60 %>%
+  st_transform(crs = 4326)
+
+Tree_geoid <-
+  st_join(Tree_geo, Agg_above_60_4326,join=st_within)%>%
+  select(-Age_Above60)%>%
+  st_drop_geometry()%>%
+  group_by(GEOID)%>%
+  summarize(TreeCount = sum(TreeCount1))%>%
+  left_join(.,block_geo) %>%
+  st_as_sf()%>%
+  st_transform(st_crs = fishnet)
+
+Tree_geoid2 <-
+  Tree_geoid %>%
+  st_drop_geometry()%>%
+  mutate(Legend = "Tree")%>%
+  rename(Count = TreeCount)%>%
+  select(GEOID,Count,Legend)
+
+```
+
+```{r}
+Philly_White <-
+  Philly_Race %>%
+  select(WHITE,GEO_ID)%>%
+  rename(GEOID = GEO_ID) %>%
+  rename(Count = WHITE)%>%
+  mutate(Legend = "white")%>%
+  select(GEOID,Count, Legend)
+
+Philly_Black <-
+   Philly_Race %>%
+  select(BLACK,GEO_ID)%>%
+  rename(GEOID = GEO_ID) %>%
+  rename(Count = BLACK)%>%
+  mutate(Legend = "black")%>%
+  select(GEOID,Count, Legend)
+
+Philly_Asian <-
+   Philly_Race %>%
+  select(ASIAN,GEO_ID)%>%
+  rename(GEOID = GEO_ID) %>%
+  rename(Count = ASIAN)%>%
+  mutate(Legend = "asian")%>%
+  select(GEOID,Count, Legend)
+
+Philly_Total <-
+   Philly_Race %>%
+  select(TOTAL,GEO_ID)%>%
+  rename(GEOID = GEO_ID) %>%
+  rename(Count = TOTAL)%>%
+  mutate(Legend = "total")%>%
+  select(GEOID,Count, Legend)
+
+tree_no_geo <- 
+  st_drop_geometry(Tree_geoid) 
+
+white_no_geo <-
+  st_drop_geometry(Philly_White)
+
+black_no_geo <-
+  st_drop_geometry(Philly_Black)
+
+asian_no_geo <-
+  st_drop_geometry(Philly_Asian)
+
+no_car_no_geo <-
+  st_drop_geometry(No_car_commute)
+
+total_no_geo <-
+  st_drop_geometry(Philly_Total)
+
+block_geo <-
+  block_geo %>%
+  st_transform(st_crs(fishnet))
+
+vars_net <- 
+  rbind(Agg_above_60,Agg_age_below_10,Crash_geoid2,No_car_commute, Tree_geoid2,Philly_White,Philly_Asian,Philly_Black,Philly_Total)%>%
+  left_join(.,block_geo)%>%
+  st_as_sf()%>%st_transform(crs = 4326)
+
+fishnet <-
+  fishnet %>%
+  st_transform(crs = 4326)
+
+vars_net2 <-
+  vars_net %>%
+  st_join(., fishnet, join=st_within) %>%
+  st_drop_geometry() %>%
+  group_by(uniqueID, Legend) %>%
+  summarize(count = n()) %>%
+    full_join(fishnet) %>%
+    spread(Legend, count, fill=0) %>%
+    st_sf() %>%
+    dplyr::select(-`<NA>`) %>%
+    na.omit() %>%
+    ungroup()
+
+max(vars_net$no)
+```
+
+```{r}
+#Crime data
+Crime_2020 <- read.csv("Crime_Incidents_2020.csv")
+
+colnamCleaning<-c("the_geom", "cartodb_id", "the_geom_webmercator")
+Crime_2020 <-Crime_2020[ , -which(names(Crime_2020) %in% colnamCleaning)]
+
+
+Crime_2019 <- read.csv("Crime_Incidents_2019.csv")
+Crime_2018 <- read.csv("Crime_Incidents_2018.csv")
+Crime_2017 <- read.csv("Crime_Incidents_2017.csv")
+Crime_2016 <- read.csv("Crime_Incidents_2016.csv")
+
+str(Crime)
+
+
+Crime <-
+  rbind(Crime_2020,Crime_2019,Crime_2018, Crime_2017, Crime_2016) %>%na.omit()%>%
+   st_as_sf(coords = c("point_x","point_y"),crs = "ESRI:102271")
+
+Crime_Veh <-
+  Crime %>%
+  filter (text_general_code == "Theft from Vehicle") %>%
+  select(geometry)%>%
+  mutate(CrimeCount = 1)
+
+Crime_Veh2 <-
+  st_join(Crime_Veh, block_geo, st_join = within)
+
+s
+%>%
+    st_drop_geometry()%>%
+  group_by(GEOID)%>%
+  summarize(CrimeCount = sum(CrimeCount1))%>%
+  left_join(.,block_geo) %>%
+  st_as_sf()
+  
+
+Crime %>%
+  mutate(hour_ = factor(hour_, levels = c(as.character(seq(0,24)))))%>%
+  group_by(hour_)%>%
+  tally()%>%
+  group_by(hour_)%>%
+  summarise(SUM_HOUR = sum(n)) %>%
+  filter(!hour_ == "99")%>%
+  ggplot(aes(hour_, SUM_HOUR, fill=hour_)) + 
+  geom_bar(position = "dodge", stat = "summary", fun.y = "mean") 
+
+Crime$hour_ <- as.numeric(Crime$hour_)
+
+
+Crime %>%
+  mutate(TIME_OF_DAY = case_when(hour_ < 7 | hour_ > 18 ~ "Overnight",
+                                 hour_ >= 7 & hour_ < 10 ~ "AM Rush",
+                                 hour_ >= 10 & hour_ < 15 ~ "Mid-Day",
+                                 hour_ >= 15 & hour_ <= 18 ~ "PM Rush"))%>%
+  group_by(hour_, TIME_OF_DAY) %>%
+  tally() %>%
+  group_by(TIME_OF_DAY) %>%
+  summarise(sum_crime = sum(n))%>%
+  ggplot(aes(TIME_OF_DAY, sum_crime, fill = TIME_OF_DAY))+
+  geom_bar(position = "dodge", stat = "summary", fun.y = "mean")
+
+
+```
 
 Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
