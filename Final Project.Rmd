@@ -18,8 +18,6 @@ library(mapview)
 library(ggcorrplot)
 library(viridis)
 library(extrafont)
-font_import()
-loadfonts(device = "win")
 
 census_api_key("94efffd19b56ad527e379faea1653ee74dc3de4a",overwrite = TRUE)
 
@@ -105,7 +103,6 @@ Philly_commute <- get_acs(geography = "tract",
 Philly_Race <- read.csv("2020Census.csv")
 Philly_Race$GEO_ID<-gsub("1500000US","",as.character(Philly_Race$GEO_ID))
 
->>>>>>> parent of 1ffc103 (more codes)
 Report_311_2020 <-
   read.csv("public_cases_2020.csv")%>%
   filter(service_name=="Street Light Outage")
@@ -228,7 +225,7 @@ Fatal_Crash2 <-
 
 #Mapping out Lumens in Philly
 p <- ggplot()+
-  geom_sf(data = Philly_Pop_AgeBelow10,color = "grey30")+
+  geom_sf(data = Philly_Census,color = "grey30")+
   geom_sf(data = Street_Poles_Lumen, aes(color = LUM_SIZE),alpha=0.5) +  labs(x = NULL, 
          y = NULL, 
          title = "Light Brightness by Lumen in Philadelphia", 
@@ -253,7 +250,7 @@ disfunction_light_geo <-
   rbind(.,lum_0_geo)
 
 ggplot()+
-  geom_sf(data = Philly_Pop_AgeBelow10,color = "grey30")+
+  geom_sf(data = Philly_Census,color = "grey30")+
   geom_sf(data = Street_Poles_Lumen,color = "seagreen",alpha=0.8) +  
   geom_sf(data = disfunction_light_geo,color = "red", alpha = 0.5 ) +
   labs(x = NULL, 
@@ -276,12 +273,13 @@ fishnet <-
                square = TRUE) %>%
   .[Philly_boundary] %>%            
   st_sf() %>%
-  mutate(uniqueID = rownames(.))
+  mutate(uniqueID = rownames(.))%>%
+  st_transform(crs = 4326)
 
 #Light in Fishnet
 light_net <- 
   Street_Poles_Lumen %>%
-  st_transform('ESRI:102271')%>%
+  st_transform(crs = 4326)%>%
   filter(!LUM_SIZE == 0)%>%
   select(-LUM_SIZE) %>%
   mutate(countLight = 1) %>% 
@@ -375,10 +373,6 @@ No_car_commute %>%
 
 #Crash Count in each block Group
 
-block_geo <-
-  Agg_above_60 %>%
-  select(geometry,GEOID)
-
 Crash_geo <-
 Crash_Ped %>%
   select(geometry) %>%
@@ -399,13 +393,6 @@ ggplot()+
   geom_sf(data = fishnet4, aes(fill = CrashCount))+
   scale_fill_viridis(option = "B", direction = -1)
 
-Crash_geoid2 <-
-  Crash_geoid %>%
-  st_drop_geometry()%>%
-  mutate(Legend = "Crash") %>%
-  rename(Count = CrashCount)%>%
-  select(GEOID,Count,Legend)
-
 ```
 
 ```{r Tree}
@@ -419,7 +406,11 @@ fishnet_5 <-
   Tree %>%
   st_join(.,fishnet)%>%
   group_by(uniqueID) %>%
-  summarize(CountTree = sum(TreeCount))
+  summarize(CountTree = sum(TreeCount))%>% st_drop_geometry()%>%
+  left_join(fishnet)%>%
+  st_as_sf()
+
+  
 
 Tree_geoid2 <-
   Tree_geoid %>%
@@ -431,68 +422,157 @@ Tree_geoid2 <-
 ```
 
 ```{r}
+block_geo <-
+  Philly_Census %>%
+  select(geometry,GEOID)
+
+Philly_Race <-
+Philly_Race %>%
+  rename(GEOID=GEO_ID)%>%
+  left_join(block_geo)%>%
+  st_as_sf()
+  
+Philly_Race <-
+  Philly_Race %>%
+  st_transform(crs = 4326)
+
 Philly_White <-
   Philly_Race %>%
-  select(WHITE,GEO_ID)%>%
-  rename(GEOID = GEO_ID) %>%
-  rename(Count = WHITE)%>%
-  mutate(Legend = "white")%>%
-  select(GEOID,Count, Legend)
+  select(WHITE,GEOID)%>%
+  dplyr::rename(Count = WHITE)%>%
+  st_centroid()%>%
+   st_join(.,fishnet)%>%
+  group_by(uniqueID) %>%
+   dplyr::summarize(CountWhite = sum(Count))
 
+fishnet6 <-
+  Philly_White %>%
+  st_drop_geometry()%>%
+  left_join(.,fishnet)%>%
+  st_as_sf()
+  
 Philly_Black <-
-   Philly_Race %>%
-  select(BLACK,GEO_ID)%>%
-  rename(GEOID = GEO_ID) %>%
+ Philly_Race %>%
+  select(BLACK,GEOID)%>%
   rename(Count = BLACK)%>%
-  mutate(Legend = "black")%>%
-  select(GEOID,Count, Legend)
+  st_centroid()%>%
+   st_join(.,fishnet)%>%
+  group_by(uniqueID) %>%
+  summarize(CountBlack = sum(Count))
+
+fishnet10 <-
+  Philly_Black %>%
+  st_drop_geometry()%>%
+  left_join(.,fishnet)%>%
+  st_as_sf()
 
 Philly_Asian <-
-   Philly_Race %>%
-  select(ASIAN,GEO_ID)%>%
-  rename(GEOID = GEO_ID) %>%
+  Philly_Race %>%
+  select(ASIAN,GEOID)%>%
   rename(Count = ASIAN)%>%
-  mutate(Legend = "asian")%>%
-  select(GEOID,Count, Legend)
+  st_centroid()%>%
+   st_join(.,fishnet)%>%
+  group_by(uniqueID) %>%
+  summarize(CountAsian = sum(Count))
+
+fishnet7 <-
+  Philly_Asian %>%
+  st_drop_geometry()%>%
+  left_join(.,fishnet)%>%
+  st_as_sf()
 
 Philly_Total <-
    Philly_Race %>%
-  select(TOTAL,GEO_ID)%>%
-  rename(GEOID = GEO_ID) %>%
+  select(TOTAL,GEOID)%>%
   rename(Count = TOTAL)%>%
-  mutate(Legend = "total")%>%
-  select(GEOID,Count, Legend)
+  st_centroid()%>%
+   st_join(.,fishnet)%>%
+  group_by(uniqueID) %>%
+  summarize(CountTotal = sum(Count))
 
-tree_no_geo <- 
-  st_drop_geometry(Tree_geoid) 
+fishnet8 <-
+  Philly_Total %>%
+  st_drop_geometry()%>%
+  left_join(.,fishnet)%>%
+  st_as_sf()
 
-white_no_geo <-
-  st_drop_geometry(Philly_White)
 
-black_no_geo <-
-  st_drop_geometry(Philly_Black)
+```
 
-asian_no_geo <-
-  st_drop_geometry(Philly_Asian)
+```{r crime}
 
-no_car_no_geo <-
-  st_drop_geometry(No_car_commute)
+Crime_2020 <- read.csv("Crime_Incidents_2020.csv")
 
-total_no_geo <-
-  st_drop_geometry(Philly_Total)
+colnamCleaning<-c("the_geom", "cartodb_id", "the_geom_webmercator")
+Crime_2020 <-Crime_2020[ , -which(names(Crime_2020) %in% colnamCleaning)]
 
-block_geo <-
-  block_geo %>%
-  st_transform(st_crs(fishnet))
+Crime_2019 <- read.csv("Crime_Incidents_2019.csv")
+Crime_2018 <- read.csv("Crime_Incidents_2018.csv")
+Crime_2017 <- read.csv("Crime_Incidents_2017.csv")
+Crime_2016 <- read.csv("Crime_Incidents_2016.csv")
 
-vars_net <- 
-  rbind(Agg_above_60,Agg_age_below_10,Crash_geoid2,Tree_geoid2,Philly_White,Philly_Asian,Philly_Black,Philly_Total)%>%
-  left_join(.,block_geo)%>%
-  st_as_sf()%>%st_transform(crs = 4326)
+Crime <-
+  rbind(Crime_2020,Crime_2019,Crime_2018, Crime_2017, Crime_2016) %>%na.omit()%>%
+   st_as_sf(coords = c("point_x","point_y"),crs = 4326)%>%
+  mutate(CrimeCount=1)%>%
+  st_join(fishnet)%>%
+  group_by(uniqueID)%>%
+    summarise(CountCrime = sum(CrimeCount))
 
-fishnet <-
-  fishnet %>%
-  st_transform(crs = 4326)
+fishnet9 <-
+  Crime %>%
+  st_drop_geometry()%>%
+  left_join(.,fishnet)%>%
+  st_as_sf()
+
+ggplot()+
+  geom_sf(data = Philly_boundary)+
+  geom_sf(data = fishnet9, aes(fill = CountCrime))+
+  scale_fill_viridis(option = "B", direction = -1)
+```
+```{r fishnet join}
+library(purrr)
+
+light_net2 <-
+  Street_Poles_Lumen %>%
+  filter(!LUM_SIZE ==0) %>%
+  st_join(.,fishnet)
+
+light_net2 <- light_net2 %>% 
+  group_by(uniqueID)%>%
+  dplyr::summarise(mean_lumen = sum(LUM_SIZE))
+
+dfs <- list(
+  st_drop_geometry(fishnet1), st_drop_geometry(fishnet2), st_drop_geometry(fishnet3), st_drop_geometry(fishnet4), st_drop_geometry(fishnet_5),st_drop_geometry(fishnet6),st_drop_geometry(fishnet7),st_drop_geometry(fishnet8),st_drop_geometry(fishnet9),st_drop_geometry(fishnet10),st_drop_geometry(light_net2))
+  
+  
+fishnet_final <-
+  purrr::reduce(dfs, dplyr::left_join, by = 'uniqueID')%>%
+  right_join(fishnet)%>%
+  st_as_sf()
+
+fishnet_final[is.na(fishnet_final)] <- 0
+
+fishnet_final2 <-
+  gather(fishnet_final, Variable,value, -geometry,-uniqueID)
+
+vars <- unique(fishnet_final2$Variable)
+
+mapList <- list()
+for(i in vars){
+  mapList[[i]] <- 
+    ggplot() +
+      geom_sf(data = filter(fishnet_final2, Variable == i), aes(fill=value), colour=NA) +
+      scale_fill_viridis(name="") +
+      labs(title=i) + theme_map()}
+
+library(grid)
+library(gridExtra)
+
+do.call(grid.arrange,c(mapList, ncol=3, top="Variable Counts by Fishnet"))
+
+  
+```
 
 vars_net2 <-
   vars_net %>%
@@ -528,9 +608,8 @@ Crime_2016 <- read.csv("Crime_Incidents_2016.csv")
 str(Crime)
 
 
-Crime <-
-  rbind(Crime_2020,Crime_2019,Crime_2018, Crime_2017, Crime_2016) %>%na.omit()%>%
-   st_as_sf(coords = c("point_x","point_y"),crs = "ESRI:102271")
+
+
 
 Crime_Veh <-
   Crime %>%
