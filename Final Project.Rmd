@@ -301,16 +301,24 @@ ggplot() +
 
 ```{r data cleaning}
 
-Agg_age_below_10 <-
+Agg_age_below_10_f <-
   Philly_Census %>%
   mutate(Age_below_10 = PopBelow5ME + Pop_5_9ME + PopBeloq5FE +Pop_5_9FE)%>%
   select(-ends_with("M"),-ends_with("E"))%>%
-  st_transform('ESRI:102271')%>%
+  st_transform(crs = 4326)%>%
   mutate(Legend = "Below10") %>%
   rename(Count = Age_below_10)%>%
   select(GEOID,Count,Legend) %>%
-  st_drop_geometry()
+  st_centroid() %>%
+  st_join(.,fishnet)%>%
+  group_by(uniqueID) %>%
+  summarize(CountBelow10 = sum(Count))
 
+fishnet1 <-
+  Agg_age_below_10_f %>%
+  st_drop_geometry()%>%
+  left_join(fishnet)%>%
+  st_as_sf
 
 Agg_above_60 <-
   Philly_Pop_Above60 %>%
@@ -330,21 +338,39 @@ Agg_above_60 <-
                                       B01001_048E+
                                       B01001_049E)%>%
   select(GEOID,geometry,Age_Above60) %>%
-  st_transform('ESRI:102271')%>%
+  st_transform(crs = 4326)%>%
   mutate(Legend = "Above60") %>%
   rename(Count = Age_Above60)%>%
   select(GEOID,Count,Legend) %>%
-  st_drop_geometry()
+  st_centroid()%>%
+   st_join(.,fishnet)%>%
+  group_by(uniqueID) %>%
+  summarize(CountAbove60 = sum(Count))
+
+fishnet2 <-
+  Agg_above_60 %>%
+  st_drop_geometry()%>%
+  left_join(fishnet)%>%
+  st_as_sf()
 
 No_car_commute <- 
   Philly_commute %>%
   mutate(Non_auto_commute = BikeE, Public_TransE, WalkE) %>%
   select(geometry, Non_auto_commute, GEOID) %>%
-  st_transform('ESRI:102271') %>%
+  st_transform(crs = 4326) %>%
   mutate(Legend = "NoCar") %>%
   rename(Count = Non_auto_commute)%>%
   select(GEOID,Count,Legend) %>%
-    st_drop_geometry()
+  st_centroid()%>%
+   st_join(.,fishnet)%>%
+  group_by(uniqueID) %>%
+  summarize(CountNoCar = sum(Count))
+
+fishnet3 <-
+No_car_commute %>% 
+  st_drop_geometry()%>%
+  left_join(fishnet)%>%
+  st_as_sf()
   
 
 #Crash Count in each block Group
@@ -356,22 +382,21 @@ block_geo <-
 Crash_geo <-
 Crash_Ped %>%
   select(geometry) %>%
-  st_transform('ESRI:102271')%>%
-  mutate(CrashCount1 = 1) 
+  st_transform(crs = 4326)%>%
+  mutate(CrashCount = 1)%>%
+  st_join(.,fishnet)%>%
+  group_by(uniqueID) %>%
+  summarize(CrashCount = sum(CrashCount))
 
-Crash_geoid <-
-  st_join(Crash_geo, Agg_above_60,join=st_within)%>%
-  select(-Age_Above60)%>%
+fishnet4 <-
+  Crash_geo %>% 
   st_drop_geometry()%>%
-  group_by(GEOID)%>%
-  summarize(CrashCount = sum(CrashCount1))%>%
-  left_join(.,block_geo) %>%
-  st_as_sf()%>%
-  st_transform(st_crs = fishnet)
+  left_join(fishnet)%>%
+  st_as_sf()
 
 ggplot()+
   geom_sf(data = Philly_boundary)+
-  geom_sf(data = Crash_geoid, aes(fill = CrashCount))+
+  geom_sf(data = fishnet4, aes(fill = CrashCount))+
   scale_fill_viridis(option = "B", direction = -1)
 
 Crash_geoid2 <-
@@ -386,26 +411,15 @@ Crash_geoid2 <-
 ```{r Tree}
 Tree <-
 read.csv("PPR_Tree_Inventory_2021.csv")%>%
-  st_as_sf(coords = c("LOC_X","LOC_Y"),crs = 4326) 
+  st_as_sf(coords = c("LOC_X","LOC_Y"),crs = 4326) %>%
+  st_transform(crs = 4326)%>%
+  mutate(TreeCount = 1)
 
-Tree_geo <-
-Tree %>%
-  select(geometry) %>%
-  mutate(TreeCount1 = 1)
-
-Agg_above_60_4326 <-
-  Agg_above_60 %>%
-  st_transform(crs = 4326)
-
-Tree_geoid <-
-  st_join(Tree_geo, Agg_above_60_4326,join=st_within)%>%
-  select(-Age_Above60)%>%
-  st_drop_geometry()%>%
-  group_by(GEOID)%>%
-  summarize(TreeCount = sum(TreeCount1))%>%
-  left_join(.,block_geo) %>%
-  st_as_sf()%>%
-  st_transform(st_crs = fishnet)
+fishnet_5 <-
+  Tree %>%
+  st_join(.,fishnet)%>%
+  group_by(uniqueID) %>%
+  summarize(CountTree = sum(TreeCount))
 
 Tree_geoid2 <-
   Tree_geoid %>%
@@ -472,7 +486,7 @@ block_geo <-
   st_transform(st_crs(fishnet))
 
 vars_net <- 
-  rbind(Agg_above_60,Agg_age_below_10,Crash_geoid2,No_car_commute, Tree_geoid2,Philly_White,Philly_Asian,Philly_Black,Philly_Total)%>%
+  rbind(Agg_above_60,Agg_age_below_10,Crash_geoid2,Tree_geoid2,Philly_White,Philly_Asian,Philly_Black,Philly_Total)%>%
   left_join(.,block_geo)%>%
   st_as_sf()%>%st_transform(crs = 4326)
 
@@ -482,9 +496,11 @@ fishnet <-
 
 vars_net2 <-
   vars_net %>%
-  st_join(., fishnet, join=st_within) %>%
+  st_join(.,fishnet, join=st_within)%>%
   st_drop_geometry() %>%
-  group_by(uniqueID, Legend) %>%
+  group_by(uniqueID, Legend)
+
+%>%
   summarize(count = n()) %>%
     full_join(fishnet) %>%
     spread(Legend, count, fill=0) %>%
@@ -493,7 +509,7 @@ vars_net2 <-
     na.omit() %>%
     ungroup()
 
-max(vars_net$no)
+
 ```
 
 ```{r}
