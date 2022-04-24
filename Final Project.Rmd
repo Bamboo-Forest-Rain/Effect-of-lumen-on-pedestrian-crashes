@@ -295,6 +295,7 @@ ggplot() +
   scale_fill_viridis_b() +
   labs(title = "Street Light Pole Count in each Fishnet Cell", Legend = "Street Pole Count", caption="Fig.2") +
   theme_map()
+
 ```
 
 ```{r data cleaning}
@@ -530,6 +531,21 @@ ggplot()+
   geom_sf(data = fishnet9, aes(fill = CountCrime))+
   scale_fill_viridis(option = "B", direction = -1)
 ```
+```{r crash fishnet}
+
+Crash_Fish <-
+  Crash_Ped %>%
+  st_as_sf(coords = c("LONGITUDE","LATITUDE"),crs = 4326) %>%
+  mutate(Count = 1)%>%
+  st_join(fishnet)%>%
+  dplyr::group_by(uniqueID) %>%
+  dplyr::summarise(PedCrashCount = sum(Count)) %>%
+  st_drop_geometry() %>%
+  left_join(fishnet) %>%
+  st_as_sf()
+
+```
+
 ```{r fishnet join}
 library(purrr)
 
@@ -543,7 +559,7 @@ light_net2 <- light_net2 %>%
   dplyr::summarise(mean_lumen = sum(LUM_SIZE))
 
 dfs <- list(
-  st_drop_geometry(fishnet1), st_drop_geometry(fishnet2), st_drop_geometry(fishnet3), st_drop_geometry(fishnet4), st_drop_geometry(fishnet_5),st_drop_geometry(fishnet6),st_drop_geometry(fishnet7),st_drop_geometry(fishnet8),st_drop_geometry(fishnet9),st_drop_geometry(fishnet10),st_drop_geometry(light_net2))
+  st_drop_geometry(fishnet1), st_drop_geometry(fishnet2), st_drop_geometry(fishnet3), st_drop_geometry(fishnet4), st_drop_geometry(fishnet_5),st_drop_geometry(fishnet6),st_drop_geometry(fishnet7),st_drop_geometry(fishnet8),st_drop_geometry(fishnet9),st_drop_geometry(fishnet10),st_drop_geometry(light_net2), st_drop_geometry(Crash_Fish))
   
   
 fishnet_final <-
@@ -563,7 +579,7 @@ for(i in vars){
   mapList[[i]] <- 
     ggplot() +
       geom_sf(data = filter(fishnet_final2, Variable == i), aes(fill=value), colour=NA) +
-      scale_fill_viridis(name="") +
+      scale_fill_viridis_b(name="") +
       labs(title=i) + theme_map()}
 
 library(grid)
@@ -574,87 +590,45 @@ do.call(grid.arrange,c(mapList, ncol=3, top="Variable Counts by Fishnet"))
   
 ```
 
-vars_net2 <-
-  vars_net %>%
-  st_join(.,fishnet, join=st_within)%>%
-  st_drop_geometry() %>%
-  group_by(uniqueID, Legend)
-
-%>%
-  summarize(count = n()) %>%
-    full_join(fishnet) %>%
-    spread(Legend, count, fill=0) %>%
-    st_sf() %>%
-    dplyr::select(-`<NA>`) %>%
-    na.omit() %>%
-    ungroup()
-
-
-```
 
 ```{r}
-#Crime data
-Crime_2020 <- read.csv("Crime_Incidents_2020.csv")
+library(corrplot)
+library(ggcorrplot)
 
-colnamCleaning<-c("the_geom", "cartodb_id", "the_geom_webmercator")
-Crime_2020 <-Crime_2020[ , -which(names(Crime_2020) %in% colnamCleaning)]
+fishnet_nu <-
+  fishnet_final %>%
+  st_drop_geometry()%>%
+  select(-uniqueID)
 
+cor(fishnet_nu)%>%
+  ggcorrplot(hc.order = TRUE,
+           type = "lower",
+           outline.color = "white")
 
-Crime_2019 <- read.csv("Crime_Incidents_2019.csv")
-Crime_2018 <- read.csv("Crime_Incidents_2018.csv")
-Crime_2017 <- read.csv("Crime_Incidents_2017.csv")
-Crime_2016 <- read.csv("Crime_Incidents_2016.csv")
+fishnet_long <-
+  fishnet_final %>%
+  st_drop_geometry()%>%
+  select(-uniqueID,-CrashCount)%>%
+  gather(Variable, value, -PedCrashCount)
 
-str(Crime)
+fishnet_cor <-
+  fishnet_final %>%
+  st_drop_geometry()%>%
+  dplyr::select(-uniqueID, -CrashCount)%>%
+  gather(Variable, value, -PedCrashCount)%>%
+  dplyr::group_by(Variable) %>%
+  dplyr::summarize(correlation = cor(value, PedCrashCount, use = "complete.obs"))
 
-
-
-
-
-Crime_Veh <-
-  Crime %>%
-  filter (text_general_code == "Theft from Vehicle") %>%
-  select(geometry)%>%
-  mutate(CrimeCount = 1)
-
-Crime_Veh2 <-
-  st_join(Crime_Veh, block_geo, st_join = within)
-
-s
-%>%
-    st_drop_geometry()%>%
-  group_by(GEOID)%>%
-  summarize(CrimeCount = sum(CrimeCount1))%>%
-  left_join(.,block_geo) %>%
-  st_as_sf()
+ggplot(fishnet_long, aes(value, PedCrashCount)) +
+  geom_point(size = 0.1) +
+  geom_text(data = fishnet_cor, aes(label = paste("r =", round(correlation, 2))),
+            x=-Inf, y=Inf, vjust = 1.5, hjust = -.1) +
+  geom_smooth(method = "lm", se = FALSE, colour = "black") +
+  facet_wrap(~Variable, ncol = 2, scales = "free") +
+  labs(title = "Burglary count as a function of risk factors") +
+  theme_map()
   
-
-Crime %>%
-  mutate(hour_ = factor(hour_, levels = c(as.character(seq(0,24)))))%>%
-  group_by(hour_)%>%
-  tally()%>%
-  group_by(hour_)%>%
-  summarise(SUM_HOUR = sum(n)) %>%
-  filter(!hour_ == "99")%>%
-  ggplot(aes(hour_, SUM_HOUR, fill=hour_)) + 
-  geom_bar(position = "dodge", stat = "summary", fun.y = "mean") 
-
-Crime$hour_ <- as.numeric(Crime$hour_)
-
-
-Crime %>%
-  mutate(TIME_OF_DAY = case_when(hour_ < 7 | hour_ > 18 ~ "Overnight",
-                                 hour_ >= 7 & hour_ < 10 ~ "AM Rush",
-                                 hour_ >= 10 & hour_ < 15 ~ "Mid-Day",
-                                 hour_ >= 15 & hour_ <= 18 ~ "PM Rush"))%>%
-  group_by(hour_, TIME_OF_DAY) %>%
-  tally() %>%
-  group_by(TIME_OF_DAY) %>%
-  summarise(sum_crime = sum(n))%>%
-  ggplot(aes(TIME_OF_DAY, sum_crime, fill = TIME_OF_DAY))+
-  geom_bar(position = "dodge", stat = "summary", fun.y = "mean")
 
 
 ```
 
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
