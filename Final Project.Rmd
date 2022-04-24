@@ -412,14 +412,6 @@ fishnet_5 <-
   st_as_sf()
 
   
-
-Tree_geoid2 <-
-  Tree_geoid %>%
-  st_drop_geometry()%>%
-  mutate(Legend = "Tree")%>%
-  rename(Count = TreeCount)%>%
-  select(GEOID,Count,Legend)
-
 ```
 
 ```{r}
@@ -518,7 +510,7 @@ Crime <-
   mutate(CrimeCount=1)%>%
   st_join(fishnet)%>%
   group_by(uniqueID)%>%
-    summarise(CountCrime = sum(CrimeCount))
+   summarise(CountCrime = sum(CrimeCount))
 
 fishnet9 <-
   Crime %>%
@@ -554,9 +546,15 @@ light_net2 <-
   filter(!LUM_SIZE ==0) %>%
   st_join(.,fishnet)
 
+getmode <- function(v) {
+   uniqv <- unique(v)
+   uniqv[which.max(tabulate(match(v, uniqv)))]
+}
+
+
 light_net2 <- light_net2 %>% 
   group_by(uniqueID)%>%
-  dplyr::summarise(mean_lumen = sum(LUM_SIZE))
+  dplyr::summarise(mode_lumen = getmode(LUM_SIZE))
 
 dfs <- list(
   st_drop_geometry(fishnet1), st_drop_geometry(fishnet2), st_drop_geometry(fishnet3), st_drop_geometry(fishnet4), st_drop_geometry(fishnet_5),st_drop_geometry(fishnet6),st_drop_geometry(fishnet7),st_drop_geometry(fishnet8),st_drop_geometry(fishnet9),st_drop_geometry(fishnet10),st_drop_geometry(light_net2), st_drop_geometry(Crash_Fish))
@@ -629,12 +627,41 @@ ggplot(fishnet_long, aes(value, PedCrashCount)) +
   theme_map()
 
 ```
-```{rcreate binary}
+```{r create binary}
 #light count
 
 final_net_bi <-
-  fishnet_fianal%>%
-  mutate(WithLight = if_else(mean_lumen > 0, 1,0))
+  fishnet_final%>%
+  mutate(WithLight = case_when(mode_lumen > 0 ~ 1, TRUE ~ 0),
+         majoritywhite = case_when(CountWhite/CountTotal > 0.5 ~ 1, TRUE ~ 0),
+         Withcrash = case_when(PedCrashCount>0 ~1, TRUE ~0))
+```
+
+```{r model}
+
+str(final_net_bi)
+
+bi_model <-
+  glm(Withcrash ~ CountBelow10 + CountAbove60 + CountNoCar + CountWhite + CountAsian + CountBlack + CountTotal + CountCrime + mode_lumen, family = binomial, data = final_net_bi)
+summary(bi_model)
+
+bi_model2 <-
+  glm(Withcrash ~ CountBelow10 + CountAbove60 + CountNoCar + CountWhite + CountAsian + CountBlack + CountTotal + CountCrime + mode_lumen + WithLight + majoritywhite, family = binomial, data = final_net_bi)
+
+bi_model3 <-
+  glm(Withcrash ~ CountBelow10 + CountAbove60 + CountNoCar + CountBlack + CountTotal + CountCrime + WithLight + majoritywhite, family = binomial, data = final_net_bi)
+
+bi_model4 <-
+  glm(Withcrash ~ CountBelow10 + CountAbove60 + CountNoCar + CountWhite + CountAsian + CountBlack + CountTotal + CountCrime + mode_lumen + WithLight + majoritywhite, family = binomial, data = final_net_bi)
+
+summary(bi_model4)
 
 ```
 
+```{r}
+#Backward Selection
+
+step(glm(Withcrash ~ CountBelow10 + CountAbove60 + CountNoCar + CountWhite + CountAsian + CountBlack + CountTotal + CountCrime + mode_lumen + WithLight + majoritywhite, family = binomial, data = final_net_bi))
+
+
+```
