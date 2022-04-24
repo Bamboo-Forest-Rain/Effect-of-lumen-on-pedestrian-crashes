@@ -627,8 +627,14 @@ ggplot(fishnet_long, aes(value, PedCrashCount)) +
   facet_wrap(~Variable, ncol = 2, scales = "free") +
   labs(title = "Burglary count as a function of risk factors") +
   theme_map()
-  
 
+```
+```{rcreate binary}
+#light count
+
+final_net_bi <-
+  fishnet_fianal%>%
+  mutate(WithLight = if_else(mean_lumen > 0, 1,0))
 
 ```
 
