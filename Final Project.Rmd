@@ -1,12 +1,21 @@
 ---
-title: "Final Project"
+title: "Final"
 author: "Yihong Hu & Shujing Yi"
-date: "4/16/2022"
-output: html_document
+date: "4/22/2022"
+output:
+  html_document:
+    keep_md: yes
+    toc: yes
+    theme: cosmo
+    toc_float: yes
+    code_folding: hide
+    number_sections: yes
+  pdf_document:
+    toc: yes
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(echo = TRUE,cache = TRUE, warning = FALSE, message = FALSE)
 library(sf)
 library(tidycensus)
 library(tidyverse)
@@ -18,6 +27,10 @@ library(mapview)
 library(ggcorrplot)
 library(viridis)
 library(extrafont)
+library(gganimate)
+library(gifski)
+library(caret)
+library(RSocrata)
 
 census_api_key("94efffd19b56ad527e379faea1653ee74dc3de4a",overwrite = TRUE)
 
@@ -45,7 +58,13 @@ theme_map <- function(...) {
 
 # Introduction
 
-# Data Wrangling
+Pedestrian fatalities have been accelerating for the past decade in the US. Fatality and Injury Reporting System (FARS) reports that 6515 pedestrians died in vehicle crashes in 2020, accounting for 18% of traffic fatalities. The number grew by 50% from 2010, when total traffic fatalities have only increased by 18%. 
+
+In addition, 75% of these pedestrian crashes occurred during dark conditions. This is a more critical issue in low-income neighborhoods where most people would at least walk for a portion of their commuting trips. They include seniors and children, who rely on walking and public transit to access food, health, education, and other public services. It is also an equity issue. A 2022 study reveals that Black and Native American pedestrians have much higher chance to involve in fatal crashes at night comparing to other races. 
+
+In Philadelphia, between 2016 to 2020, around 33% of the pedestrian crashes happened over night (18:00 - 7:00). The number jumps to 62% when looking into fatality cases. 
+
+The goal of this report is to discover the relationship between area brightness at the night and the number of pedestrian crashes in Philadelphia, PA. We want to see whether there is a need to improve pedestrian infrastructure at night. The brightness is measured by lumen size of the street light poles recorded by OpenData Philly. The 2016 - 2020 crash data is obtained from Pennsylvania Department of Transportation. Besides these two datasets, we also gathered demographic from 2020 5-year ACS and crime data to access neighborhood effects. The tree data is also gathered, because it might affect driver sight at night. 
 
 ```{r cars}
 
@@ -146,7 +165,6 @@ Crash_Ped <-
 Crash_Ped$HOUR_OF_DA <- as.character(Crash_Ped$HOUR_OF_DA)
 
 # Hour of crashes
-
 Crash_Ped %>%
   mutate(HOUR_DA_FACTOR = factor(HOUR_OF_DA, levels = c(as.character(seq(0,24)))))%>%
   group_by(HOUR_DA_FACTOR)%>%
@@ -154,10 +172,11 @@ Crash_Ped %>%
   group_by(HOUR_DA_FACTOR)%>%
   summarise(SUM_HOUR = sum(n)) %>%
   filter(!HOUR_DA_FACTOR == "99")%>%
-ggplot(aes(HOUR_DA_FACTOR, SUM_HOUR, fill=HOUR_DA_FACTOR)) + 
-         geom_bar(position = "dodge", stat = "summary", fun.y = "mean")+ xlab("Hour of the day") + ylab("Total Crash") + labs(title = "Pedestrian crashes by hours between 2016 - 2020")+ theme_minimal()
+ggplot(aes(HOUR_DA_FACTOR, SUM_HOUR, fill = "steelblue" )) + 
+         geom_bar(position = "dodge", stat = "summary", fun.y = "mean")+ xlab("Hour of the day") + ylab("Total Crash") + labs(title = "Pedestrian crashes by hours between 2016 - 2020") + theme_minimal() + theme(legend.position = "none")
 
 ```
+
 
 ```{r catagorical}
 #Pedestrian crashes by time of the day
@@ -176,10 +195,10 @@ Crash_Ped_PennDot_sum <-
   mutate(pct_crash = sum_crash/sum(sum_crash)*100)
 
 Crash_Ped_PennDot_sum %>%
-  ggplot(aes(TIME_OF_DAY, sum_crash, fill = TIME_OF_DAY))+
-  geom_bar(position = "dodge", stat = "summary", fun.y = "mean") + xlab("Time of the day")+ylab("Total Crash Counts") + labs(title = "Pedestrian Crashes by Time of the Day") + theme_minimal()
-
+  ggplot(aes(TIME_OF_DAY, sum_crash))+
+  geom_bar(position = "dodge", stat = "summary", fun.y = "mean", show.legend = FALSE, fill = "wheat2", width = 0.5) + xlab("Time of the day")+ylab("Total Crash Counts") + labs(title = "Pedestrian Crashes by Time of the Day") + theme_minimal()
 ```
+
 
 ```{r}
 
@@ -203,37 +222,36 @@ Crash_Ped_PennDot_Fatal %>%
 
 Crash_Ped_PennDot_Fatal_sum %>%
   ggplot(aes(TIME_OF_DAY, sum_crash, fill = TIME_OF_DAY))+
-  geom_bar(position = "dodge", stat = "summary", fun.y = "mean") + xlab("Time of the day")+ylab("Total Crash Counts") + labs(title = "Fatal Pedestrian Crashes by Time of the Day")+theme_minimal()
+  geom_bar(position = "dodge", stat = "summary", fun.y = "mean", show.legend = FALSE, fill = "tomato2", width = 0.5) + xlab("Time of the day")+ylab("Total Crash Counts") + labs(title = "Fatal Pedestrian Crashes by Time of the Day", fill = "Time of the Day")+theme_minimal()+scale_fill_brewer(palette="PuRd")
 
 ```
 
-```{r}
-Crash_Fatal_PennDot <-
-  Crash%>%
-  filter(FATAL_COUN > 0)
+## Mapping Street Light Poles in Philly
 
-Fatal_Crash <-
-  st_read("https://opendata.arcgis.com/datasets/6510bfe4d500460caef528511d084335_0.geojson")
+The map below shows the brightness given by the street poles in Philadelphia. Center City has the brightest lights. However, overall, majority of the city is still dark, with lumen sizes below 100. 
 
-Fatal_Crash2 <-
-  Fatal_Crash %>%
-  mutate(interval60 = floor_date(ymd_hms(DATE_), unit = "hour"))
-
-```
 
 ```{r}
+#Philly_boundary
+Philly_boundary <-
+  st_read("https://opendata.arcgis.com/datasets/405ec3da942d4e20869d4e1449a2be48_0.geojson")%>%
+  st_transform(crs = 4326)
 
 #Mapping out Lumens in Philly
-p <- ggplot()+
-  geom_sf(data = Philly_Census,color = "grey30")+
+ggplot()+
+  geom_sf(data = Philly_boundary,fill = "white", color = "grey75")+
   geom_sf(data = Street_Poles_Lumen, aes(color = LUM_SIZE),alpha=0.5) +  labs(x = NULL, 
          y = NULL, 
          title = "Light Brightness by Lumen in Philadelphia", 
-         caption = "Open Data Philly",
-          color = "Lumens")
+         caption = "Fig. 1",
+          color = "Lumens") + scale_color_viridis_b(option = "A")+theme_map()
 
-p + scale_color_viridis_b()+theme_map()
 
+```
+
+The red dots on the map below are disfunctional lights. We filtered out lights that have 0 as their lumen size and lights that are reported broken by 311 calls. They will be excluded from the analysis.  
+
+```{r}
 #Mapping out dis-functioning lights
 
 lum_0 <-
@@ -250,25 +268,34 @@ disfunction_light_geo <-
   rbind(.,lum_0_geo)
 
 ggplot()+
-  geom_sf(data = Philly_Census,color = "grey30")+
-  geom_sf(data = Street_Poles_Lumen,color = "seagreen",alpha=0.8) +  
+  geom_sf(data = Philly_boundary,color = "grey75", fill = "white")+
+  geom_sf(data = Street_Poles_Lumen,color = "aquamarine3",alpha=0.5) +  
   geom_sf(data = disfunction_light_geo,color = "red", alpha = 0.5 ) +
   labs(x = NULL, 
          y = NULL, 
          title = "Disfunctioning light in Philly", 
-         caption = "Open Data Philly",
-          color = "Lumens")
+         caption = "Fig. 2",  color = "Lumens") + theme_map()
 
 ```
 
+# Method
+
+## Fishent
+
+The first step to our analysis is to build a fishnet over Philadelphia. Each cell is 500ft * 500ft. Fishnet creates grids that smooths out the irregular boundaries given by census data. 
+
+### Light Counts
+
+The map below shows the street light pole counts in each fishnet cell.
+
 ```{r}
 #fishnet
-Philly_boundary <-
+Philly_boundary2 <-
   st_read("https://opendata.arcgis.com/datasets/405ec3da942d4e20869d4e1449a2be48_0.geojson")%>%
-  st_transform('ESRI:102271')
+  st_transform("ESRI:102271")
 
 fishnet <- 
-  st_make_grid(Philly_boundary,
+  st_make_grid(Philly_boundary2,
                cellsize = 500, 
                square = TRUE) %>%
   .[Philly_boundary] %>%            
@@ -292,11 +319,17 @@ light_net <-
 #Light Count in each fishnet cell
 ggplot() +
   geom_sf(data = light_net, aes(fill = countLight), color = NA) +
-  scale_fill_viridis_b() +
-  labs(title = "Street Light Pole Count in each Fishnet Cell", Legend = "Street Pole Count", caption="Fig.2") +
+  scale_fill_viridis_b(option = "A") +
+  labs(title = "Street Light Pole Count in each Fishnet Cell", fill = "Street Pole\n Count", caption="Fig.3") +
   theme_map()
 
 ```
+
+It is not surprising that Center City has the highest number of street lights. However, this map does not correspond to Figure 1. North of Center City has 100 to 200 street poles, most of the them are low in lumen sizes. 
+
+### Crash Counts
+
+Fig 4 shows the pedestrian crash count in each fishnet cell between 2016 - 2020.
 
 ```{r data cleaning}
 
@@ -390,11 +423,46 @@ fishnet4 <-
   st_as_sf()
 
 ggplot()+
-  geom_sf(data = Philly_boundary)+
-  geom_sf(data = fishnet4, aes(fill = CrashCount))+
-  scale_fill_viridis(option = "B", direction = -1)
+  geom_sf(data = Philly_boundary,color = "grey75", fill = "white")+
+  geom_sf(data = fishnet4, aes(fill = CrashCount), color = "grey50")+
+  scale_fill_viridis_b(option = "A", direction = -1,na.value = "grey30") + labs(fill = "Crash Count",title = "Pedestrian Crashes per Fishnet Cell\n 2016 - 2020", caption = "Fig. 4") + theme_map()
 
 ```
+
+Most crashes occurred in Center City, perhaps because center city has the highest traffic flow and the densest population. We can also observe that most crashes occurred along Broad Street, Market Street, and Roosevelt Boulevard.
+
+```{r}
+
+Crash_dark <-
+Crash_Ped %>%
+  filter(ILLUMINATI == 2 | ILLUMINATI ==3) %>%
+  select(geometry) %>%
+  st_transform(crs = 4326)%>%
+  mutate(CrashCount = 1)%>%
+  st_join(.,fishnet)%>%
+  group_by(uniqueID) %>%
+  summarize(DarkConditionCount = sum(CrashCount))
+
+fishnet12 <-
+  Crash_dark %>% 
+  st_drop_geometry()%>%
+  left_join(fishnet)%>%
+  st_as_sf()
+
+ggplot()+
+  geom_sf(data = Philly_boundary,color = "grey75", fill = "white")+
+  geom_sf(data = fishnet12, aes(fill = DarkConditionCount), color = "grey50")+
+  scale_fill_viridis_b(option = "A", direction = -1,na.value = "grey30") + labs(fill = "Crash Count",title = "Pedestrian Crashes over dark conditions\n per Fishnet Cell\n 2016 - 2020", caption = "Fig. 5") + theme_map()
+
+```
+
+When looking into crashes that happened over dark conditions, the cases were more spread out over the city. 
+
+### Other data
+
+We wrangled other data and dropped them into fishnet cell. For ACS  group level data, we attached the data to the center point of the block group, and spatial joined it with the fishnet. These datasets include information on trees, age, race, and population.
+
+We also extracted "flag" variables that we think are most relevant to the analysis. They are crashes related to drinking drivers, young drivers, weather, and weekends.
 
 ```{r Tree}
 Tree <-
@@ -414,7 +482,7 @@ fishnet_5 <-
   
 ```
 
-```{r}
+```{r demongraphic}
 block_geo <-
   Philly_Census %>%
   select(geometry,GEOID)
@@ -512,6 +580,11 @@ Crime <-
   group_by(uniqueID)%>%
    summarise(CountCrime = sum(CrimeCount))
 
+Crime_st_drop <-
+  Crime%>% st_drop_geometry()
+
+write.csv(Crime_st_drop,"crime_st_drop.csv")
+
 fishnet9 <-
   Crime %>%
   st_drop_geometry()%>%
@@ -521,21 +594,151 @@ fishnet9 <-
 ggplot()+
   geom_sf(data = Philly_boundary)+
   geom_sf(data = fishnet9, aes(fill = CountCrime))+
-  scale_fill_viridis(option = "B", direction = -1)
+  scale_fill_viridis(option = "D", direction = -1)+
+  labs(title = "Crime Count in Philly")
 ```
-```{r crash fishnet}
 
-Crash_Fish <-
-  Crash_Ped %>%
+```{r ped fatal}
+
+Ped_Fatal_fish <-
+  Crash_Ped_PennDot_Fatal %>%
   st_as_sf(coords = c("LONGITUDE","LATITUDE"),crs = 4326) %>%
-  mutate(Count = 1)%>%
+  mutate(Count =1 )%>%
   st_join(fishnet)%>%
-  dplyr::group_by(uniqueID) %>%
-  dplyr::summarise(PedCrashCount = sum(Count)) %>%
-  st_drop_geometry() %>%
-  left_join(fishnet) %>%
+  group_by(uniqueID) %>%
+  summarise(FatalCount = sum(Count))
+
+fishnet11 <-
+  Ped_Fatal_fish %>%
+  st_drop_geometry()%>%
+  left_join(.,fishnet)%>%
   st_as_sf()
 
+```
+
+```{r more into fishnet}
+crash_flag_2016 <- read.csv("FLAG_PHILADELPHIA_2016.csv")
+crash_flag_2017 <- read.csv("FLAG_PHILADELPHIA_2017.csv")
+crash_flag_2018 <- read.csv("FLAG_PHILADELPHIA_2018.csv")
+crash_flag_2019 <- read.csv("FLAG_PHILADELPHIA_2019.csv")
+crash_flag_2020 <- read.csv("FLAG_PHILADELPHIA_2020.csv")
+
+crash_flag_all <- rbind(crash_flag_2016,crash_flag_2017,crash_flag_2018,crash_flag_2019,crash_flag_2020) %>%
+  select(CRN, DRINKING_DRIVER, DRIVER_16YR, DRIVER_17YR, DRIVER_18YR,DRIVER_19YR,DRIVER_20YR)%>%
+  mutate(young_driver = case_when(DRIVER_16YR == 1 ~ 1,
+                                  DRIVER_17YR == 1 ~ 1,
+                                  DRIVER_18YR == 1 ~ 1,
+                                  DRIVER_19YR == 1 ~ 1,
+                                  DRIVER_20YR == 1 ~ 1,
+                                  TRUE ~ 0 ))%>%
+  select(CRN, young_driver, DRINKING_DRIVER)
+
+Crash_Ped_drink_young <-
+  left_join(Crash_Ped, crash_flag_all, by = "CRN")
+
+
+Crash_Fish_drunk <-
+  Crash_Ped_drink_young %>%
+  filter(DRINKING_DRIVER == 1) %>%
+    select(geometry) %>%
+  st_transform(crs = 4326)%>%
+  mutate(CrashCount = 1)%>%
+  st_join(.,fishnet)%>%
+  group_by(uniqueID) %>%
+  summarize(CountDrunk = sum(CrashCount))
+
+fishnet17 <-
+  Crash_Fish_drunk %>% 
+  st_drop_geometry()%>%
+  left_join(fishnet)%>%
+  st_as_sf()
+
+Crash_young <-
+   Crash_Ped_drink_young %>%
+  filter(young_driver == 1) %>%
+    select(geometry) %>%
+  st_transform(crs = 4326)%>%
+  mutate(CrashCount = 1)%>%
+  st_join(.,fishnet)%>%
+  group_by(uniqueID) %>%
+  summarize(CountYoung = sum(CrashCount))
+
+fishnet13 <-
+  Crash_young %>% 
+  st_drop_geometry()%>%
+  left_join(fishnet)%>%
+  st_as_sf()
+
+```
+```{r speed}
+
+#Speed Limit
+crash_road_2016 <- read.csv("ROADWAY_PHILADELPHIA_2016.csv")
+crash_road_2017 <- read.csv("ROADWAY_PHILADELPHIA_2017.csv")
+crash_road_2018 <- read.csv("ROADWAY_PHILADELPHIA_2018.csv")
+crash_road_2019 <- read.csv("ROADWAY_PHILADELPHIA_2019.csv")
+crash_road_2020 <- read.csv("ROADWAY_PHILADELPHIA_2020.csv")
+
+crash_road_all <- rbind(crash_road_2016,crash_road_2017,crash_road_2018,crash_road_2019,crash_road_2020) %>%
+  select(CRN, SPEED_LIMIT) %>% na.omit %>% distinct(CRN, .keep_all = TRUE)
+
+Crash_Ped_Road <-
+  left_join(Crash_Ped, crash_road_all, by = "CRN")
+
+Crash_Speed <-
+  Crash_Ped_Road %>%
+   st_transform(crs = 4326)%>%
+  st_join(.,fishnet)%>%
+  group_by(uniqueID) %>%
+  summarize(MeanSpeed = mean(SPEED_LIMIT))
+  
+
+fishnet14 <-
+  Crash_Speed %>% 
+  st_drop_geometry()%>%
+  left_join(fishnet)%>%
+  st_as_sf()
+
+
+```
+
+```{r weather crash}
+#Weather 
+Crash_sunny <-
+  Crash_Ped %>%
+  filter(WEATHER == 1) %>%
+    select(geometry) %>%
+  st_transform(crs = 4326)%>%
+  mutate(CrashCount = 1)%>%
+  st_join(.,fishnet)%>%
+  group_by(uniqueID) %>%
+  summarize(SunnyCount = sum(CrashCount))
+
+fishnet15 <-
+  Crash_sunny %>% 
+  st_drop_geometry()%>%
+  left_join(fishnet)%>%
+  st_as_sf()
+```
+```{r weekend or not}
+Crash_Ped <-
+  Crash_Ped %>%
+  mutate(weekend = case_when(DAY_OF_WEE == 6 | DAY_OF_WEE == 7 ~ 1, TRUE ~ 0))
+
+Crash_weekend <-
+  Crash_Ped %>%
+  filter(weekend == 1) %>%
+  mutate(WeekendCount = 1) %>% 
+  st_join(fishnet) %>%
+  group_by(uniqueID) %>%
+  summarise(WeekendCount = sum(WeekendCount)) 
+
+fishnet16 <-
+  Crash_weekend %>% 
+  st_drop_geometry()%>%
+  left_join(fishnet)%>%
+  st_as_sf()
+  
 ```
 
 ```{r fishnet join}
@@ -544,6 +747,7 @@ library(purrr)
 light_net2 <-
   Street_Poles_Lumen %>%
   filter(!LUM_SIZE ==0) %>%
+  mutate(Light = 1) %>%
   st_join(.,fishnet)
 
 getmode <- function(v) {
@@ -554,10 +758,12 @@ getmode <- function(v) {
 
 light_net2 <- light_net2 %>% 
   group_by(uniqueID)%>%
-  dplyr::summarise(mode_lumen = getmode(LUM_SIZE))
+  dplyr::summarise(mean_lumen = mean(LUM_SIZE),
+                   mode_lumen = getmode(LUM_SIZE),
+                   LightCount = sum(Light))
 
 dfs <- list(
-  st_drop_geometry(fishnet1), st_drop_geometry(fishnet2), st_drop_geometry(fishnet3), st_drop_geometry(fishnet4), st_drop_geometry(fishnet_5),st_drop_geometry(fishnet6),st_drop_geometry(fishnet7),st_drop_geometry(fishnet8),st_drop_geometry(fishnet9),st_drop_geometry(fishnet10),st_drop_geometry(light_net2), st_drop_geometry(Crash_Fish))
+  st_drop_geometry(fishnet1), st_drop_geometry(fishnet2), st_drop_geometry(fishnet3), st_drop_geometry(fishnet4), st_drop_geometry(fishnet_5),st_drop_geometry(fishnet6),st_drop_geometry(fishnet7),st_drop_geometry(fishnet8),st_drop_geometry(fishnet9),st_drop_geometry(fishnet10),st_drop_geometry(light_net2),st_drop_geometry(fishnet11),st_drop_geometry(fishnet12), st_drop_geometry(fishnet13),st_drop_geometry(fishnet14), st_drop_geometry(fishnet15), st_drop_geometry(fishnet16),st_drop_geometry(fishnet17))
   
   
 fishnet_final <-
@@ -577,20 +783,24 @@ for(i in vars){
   mapList[[i]] <- 
     ggplot() +
       geom_sf(data = filter(fishnet_final2, Variable == i), aes(fill=value), colour=NA) +
-      scale_fill_viridis_b(name="") +
+      scale_fill_viridis_b(option = "A", direction = -1) +
       labs(title=i) + theme_map()}
 
 library(grid)
 library(gridExtra)
 
-do.call(grid.arrange,c(mapList, ncol=3, top="Variable Counts by Fishnet"))
+do.call(grid.arrange,c(mapList, ncol=3, top="Variable Counts by Fishnet", bottom = "Fig.6"))
 
   
 ```
 
+Fig 6. shows the variables we collected in fishnets. 
+
+## Correlation
+
+The correlation among variables are displayed in the correlation plot below by Pearson's R. The darker the red, the stronger the positive correlation. 
 
 ```{r}
-library(corrplot)
 library(ggcorrplot)
 
 fishnet_nu <-
@@ -600,36 +810,190 @@ fishnet_nu <-
 
 cor(fishnet_nu)%>%
   ggcorrplot(hc.order = TRUE,
-           type = "lower",
-           outline.color = "white")
-
-fishnet_long <-
-  fishnet_final %>%
-  st_drop_geometry()%>%
-  select(-uniqueID,-CrashCount)%>%
-  gather(Variable, value, -PedCrashCount)
-
-fishnet_cor <-
-  fishnet_final %>%
-  st_drop_geometry()%>%
-  dplyr::select(-uniqueID, -CrashCount)%>%
-  gather(Variable, value, -PedCrashCount)%>%
-  dplyr::group_by(Variable) %>%
-  dplyr::summarize(correlation = cor(value, PedCrashCount, use = "complete.obs"))
-
-ggplot(fishnet_long, aes(value, PedCrashCount)) +
-  geom_point(size = 0.1) +
-  geom_text(data = fishnet_cor, aes(label = paste("r =", round(correlation, 2))),
-            x=-Inf, y=Inf, vjust = 1.5, hjust = -.1) +
-  geom_smooth(method = "lm", se = FALSE, colour = "black") +
-  facet_wrap(~Variable, ncol = 2, scales = "free") +
-  labs(title = "Burglary count as a function of risk factors") +
-  theme_map()
+                      outline.color = "white")
 
 ```
+The correlation plot shows that pedestrian crashes are strongly correlated with crime. The correlation between pedestrian crashes occurred during dark condition and total pedestrian crashes is strong, suggesting that the proportion of night crashes over total crashes is consistent throughout the fishnet.
+
+We can look into pedestrian crashes occurred in dark condition and in daylight and other time separately.
+
+```{r}
+Crash_Ped_all <-
+  merge(Crash_Ped, st_drop_geometry(Crash_Ped_drink_young))
+
+Crash_Ped_all <- Crash_Ped_all %>% mutate(dark = case_when(ILLUMINATI == 2 | ILLUMINATI == 3 ~ 1, TRUE ~ 0))
+                                          
+Crash_Ped_all <- Crash_Ped_all %>% 
+  mutate(sunny = case_when(WEATHER == 1 ~ 1, TRUE ~ 0))
+
+Crash_Ped_all <- crash_road_all %>% 
+  select(SPEED_LIMIT,CRN) %>%
+  right_join(Crash_Ped_all)
+
+Crash_Ped_all <- Crash_Ped_all %>%st_as_sf %>%
+  st_transform(crs = 4326) %>%
+  st_join(fishnet_final)
+
+Crash_Ped_night <-
+  Crash_Ped_all %>%
+  filter(dark == 1)
+
+Crash_Ped_daylight <-
+  Crash_Ped_all %>%
+  filter(dark == 0)
+
+Crash_Ped_Fish_dark <-
+  Crash_Ped_night %>%
+  st_join(fishnet_final) 
+
+Crash_Ped_Fish_daylight <-
+  Crash_Ped_daylight %>%
+  st_join(fishnet_final)
+
+Crash_Ped_Fish_crash <-
+  Crash_Ped_night %>%
+  mutate(NightCrash = 1) %>%
+  group_by(uniqueID) %>%
+  summarise(NightCrash = sum(NightCrash))
+
+Crash_Ped_Fish_crash <-
+  Crash_Ped_Fish_crash %>%
+  st_drop_geometry() %>%
+  right_join(fishnet_final)%>%
+  st_as_sf()
+
+Crash_Ped_Fish_crash$NightCrash[is.na(Crash_Ped_Fish_crash$NightCrash)] <- 0
+
+Crash_Ped_Fish_crash <-
+  Crash_Ped_Fish_crash %>%
+  st_drop_geometry() %>%
+  left_join(light_net2) %>%
+  st_as_sf
+
+Crash_Ped_Fish_crash$LightCount[is.na(Crash_Ped_Fish_crash$LightCount)] <- 0
+  
+
+fishnet_nu_2 <-
+  Crash_Ped_Fish_crash %>%
+  st_drop_geometry()%>%
+  select(-uniqueID, -DarkConditionCount)
+
+cor(fishnet_nu_2)%>%
+  ggcorrplot(hc.order = TRUE, outline.color = "white")
+
+fishnet_long_night <-
+  Crash_Ped_Fish_crash %>%
+  st_drop_geometry()%>%
+  select(-uniqueID, -DarkConditionCount,-CrashCount, -SunnyCount, -WeekendCount, -FatalCount)%>%
+  gather(Variable, value, -NightCrash)
+
+fishnet_cor_night <-
+  Crash_Ped_Fish_crash %>%
+  st_drop_geometry()%>%
+  dplyr::select(-uniqueID, -DarkConditionCount,-CrashCount, -SunnyCount, -WeekendCount, -FatalCount)%>%
+  gather(Variable, value, -NightCrash)%>%
+  dplyr::group_by(Variable) %>%
+  dplyr::summarize(correlation = cor(value, NightCrash, use = "complete.obs"))
+
+ggplot(fishnet_long_night, aes(value, NightCrash)) +
+  geom_point(size = 0.1, color = "grey50", alpha = 0.5) +
+  geom_text(data = fishnet_cor_night, aes(label = paste("r =", round(correlation, 2))),
+            x=-Inf, y=Inf, vjust = 1.5, hjust = -.1) +
+  geom_smooth(method = "lm", se = FALSE, colour = "black") +
+  facet_wrap(~Variable, ncol = 3, scales = "free") +
+  labs(title = "Crash count as a function of variables") +
+  theme_map()
+```
+
+Crime still has the highest correlation with pedestrian crashes at dark conditions. Number of lights has the second strongest correlation. Lumen size, black population, and young drivers ranked the third on correlation strength with dark condition pedestrian crashes. 
+
+## Multivariate Regression
+
+Multivariate regression is made with "pedestrian crashes at dark conditions" as the dependent variable. 
+
+```{r, results = 'asis'}
+z <- Crash_Ped_Fish_crash %>% st_drop_geometry()%>%
+  mutate(CrimeRate = CountCrime/CountTotal,
+         Percent_60 = CountAbove60/CountTotal,
+         Percent_10 = CountBelow10/CountTotal,
+         Percent_Black = CountBlack/CountTotal,
+         Percent_White = CountWhite/CountTotal,
+         Percent_Asian = CountAsian/CountTotal,
+         Percent_NoCar = CountNoCar/CountTotal)
+
+z$CrimeRate[is.infinite(z$CrimeRate)] <- 0
+
+str(Crash_Ped_Fish_crash)
+# All variables
+
+library(FNN)
+library(car)
+
+model1 <- lm(NightCrash ~ CountBelow10 + CountAbove60 + CountNoCar + CountTree + CountWhite + CountAsian + CountCrime + CrimeRate + CountBlack + mean_lumen + MeanSpeed + LightCount, data = z)
+
+model2 <- lm(NightCrash ~ Percent_60 +Percent_10 + Percent_Black + Percent_Asian + CrimeRate + mean_lumen + MeanSpeed + LightCount + CountTree + CountNoCar, data = z)
+
+model3 <- lm(NightCrash ~ Percent_60 +Percent_10 + Percent_Black + Percent_Asian + CrimeRate + mean_lumen + MeanSpeed + LightCount + CountTree + Percent_NoCar, data = z)
+
+summary(model2)
+
+#Backward Selection
+
+step(lm(NightCrash ~ Percent_60 +Percent_10 + Percent_Black + Percent_Asian + CrimeRate + mean_lumen + MeanSpeed + LightCount + CountTree + Percent_NoCar, data = z))
+
+model4 <- lm(NightCrash ~ Percent_60 +Percent_10 + Percent_Black + Percent_Asian + CrimeRate + mean_lumen + LightCount + CountTree + Percent_NoCar, data = z)
+
+library(stargazer)
+
+summary(model4)
+
+stargazer(model1,model2,model3,model4, type = "text",style = "ajps")
+
+```
+In model 1, we used variables without considering the effect of population. In model 2, 3, and 4, we considered population by making all relevant variables "percent of the population" in each fishnet cell.
+
+Model 4 has all the significant variables. We can see that percent of people without cars has the greatest impact on pedestrian safety. For every percent increase in people without cars, there is an increase of 3.4 crashe in an area. 
+
+Percent of white population and percent of black population are co-founding factors, so we only included percent black population in the analysis. Black population is the most significant variable among Black, White, and Asian population. The model shows that for every percent increase in Black population in a given area, the number of crashes will increase by 1.3. 
+
+Percent of Asian population also has an great effect, however, much less significant than percent of Black population. The number of pedestrian crashes will increase by 2.6 for every percent increase in Asian population.
+
+Interestingly, according to the mode, the less the number of elders above the age 60, the more the crashes. Perhaps, this is due to the fact that the city does not have many elderly anyways. 
+
+One would expect the lumen size would be negatively associated with pedestrian crashes over night. Our results show differently. The result shows that, though very sightly, the higher the mean lumen size in an fishnet cell, the more chance of pedestrian crashes over night, while holding other variables constant. 
+
+Tree count demonstrtes a negative association with night pedestrian crashes. This means the less the tree, the more the crashes. However based on model 4, the effect is too small and negaligible. 
+
+```{r}
+
+#WithFatalCrash
+
+fishnet_long2 <-
+  fishnet_final %>%
+  st_drop_geometry()%>%
+  select(-uniqueID,-CrashCount, -PedCrashCount)%>%
+  gather(Variable, value, -FatalCount)
+
+fishnet_cor2 <-
+  fishnet_final %>%
+  st_drop_geometry()%>%
+  dplyr::select(-uniqueID, -CrashCount, -PedCrashCount)%>%
+  gather(Variable, value, -FatalCount)%>%
+  dplyr::group_by(Variable) %>%
+  dplyr::summarize(correlation = cor(value, FatalCount, use = "complete.obs"))
+
+ggplot(fishnet_long2, aes(value, FatalCount)) +
+  geom_point(size = 0.1) +
+  geom_text(data = fishnet_cor2, aes(label = paste("r =", round(correlation, 2))),
+            x=-Inf, y=Inf, vjust = 1.5, hjust = -.1) +
+  geom_smooth(method = "lm", se = FALSE, colour = "black") +
+  facet_wrap(~Variable, ncol = 3, scales = "free") +
+  labs(title = "Crash count as a function of variables") +
+  theme_map()
+```
+
 ```{r create binary}
 #light count
-
 final_net_bi <-
   fishnet_final%>%
   mutate(WithLight = case_when(mode_lumen > 0 ~ 1, TRUE ~ 0),
@@ -638,7 +1002,8 @@ final_net_bi <-
 ```
 
 ```{r model}
-
+library(FNN)
+library(car)
 str(final_net_bi)
 
 bi_model <-
@@ -654,9 +1019,124 @@ bi_model3 <-
 bi_model4 <-
   glm(Withcrash ~ CountBelow10 + CountAbove60 + CountNoCar + CountWhite + CountAsian + CountBlack + CountTotal + CountCrime + mode_lumen + WithLight + majoritywhite, family = binomial, data = final_net_bi)
 
-summary(bi_model4)
+vif(bi_model4)
+
+bi_model5 <-
+  glm(Withcrash ~ CountBelow10 + CountAbove60 + CountNoCar + CountAsian + CountTotal + CountCrime + mode_lumen + WithLight + majoritywhite, family = binomial, data = final_net_bi)
+
+summary(bi_model5)
 
 ```
+
+```{r}
+fishnet_nu %>%
+  gather(Variable, Value) %>%
+  ggplot(aes(Value)) + 
+    geom_histogram(bins = 30, color="blue", fill="blue", alpha=0.2) + 
+    facet_wrap(~Variable, scales = 'free')+
+    labs(title = "Distribution of Variables") + ylab("Count")  +
+  theme(panel.background = element_rect(colour = "grey50", size=3))
+
+fishnet_final3 <- fishnet_final
+
+fishnet_final3$uniqueID <- as.numeric(fishnet_final3$uniqueID)
+
+str(fishnet_final3)
+
+fishnet_final3$CountBelow10[fishnet_final3$CountBelow10 == 0] <- NA
+fishnet_final3$CountAbove60[fishnet_final3$CountAbove60 == 0] <- NA
+fishnet_final3$CountCountNoCar[fishnet_final3$CountNoCar == 0] <- NA
+fishnet_final3$CrashCount[fishnet_final3$CrashCount == 0] <- NA
+fishnet_final3$CountTree[fishnet_final3$CountTree== 0] <- NA
+fishnet_final3$CountWhite[fishnet_final3$CountWhite == 0] <- NA
+fishnet_final3$CountAsian[fishnet_final3$CountAsian == 0] <- NA
+fishnet_final3$CountTotal[fishnet_final3$CountTotal == 0] <- NA
+fishnet_final3$CountCrime [fishnet_final3$CountCrime  == 0] <- NA
+fishnet_final3$CountBlack[fishnet_final3$CountBlack == 0] <- NA
+fishnet_final3$mode_lumen[fishnet_final3$mode_lumen == 0] <- NA
+fishnet_final3$PedCrashCount[is.na(fishnet_final3$PedCrashCount)] <- 0
+
+fishnet_final3 %>%
+  st_drop_geometry()%>%
+  select(-uniqueID)%>%
+  gather(Variable, Value) %>%
+  ggplot(aes(Value)) + 
+    geom_histogram(bins = 30, color="blue", fill="blue", alpha=0.2) + 
+    facet_wrap(~Variable, scales = 'free')+
+    labs(title = "Distribution of Variables") + ylab("Count")  +
+  theme(panel.background = element_rect(colour = "grey50", size=3))
+
+fishnet_final3 <-
+  fishnet_final3 %>%
+  mutate(CountAbove60_median_bi = case_when(CountAbove60 > median(CountAbove60) ~ 1, TRUE ~ 0),
+ CountBelow10_median_bi = case_when(CountBelow10 > median(CountBelow10) ~ 1, TRUE ~ 0),
+ CountTotal_median_bi = case_when(CountTotal > median(CountTotal)~1,TRUE ~0),
+ Count_NoCar_median_bi = case_when(CountNoCar > median(CountNoCar) ~ 1, TRUE ~ 0),
+ Count_Tree_median_bi = case_when(CountTree > median(CountTree) ~ 1, TRUE ~0),
+ Withcrash = case_when(PedCrashCount > 0~ 1, TRUE ~0))
+
+bi_model_na <-
+  glm(Withcrash ~ CountBelow10 + CountAbove60 + CountNoCar + CountWhite + CountAsian + CountBlack + CountTotal + CountCrime + mode_lumen, family = binomial, data = fishnet_final3)
+
+summary(bi_model_na)
+vif(bi_model_na)
+
+bi_model_na_2 <-
+  glm(Withcrash ~ CountBelow10 + CountAbove60 + CountNoCar  + CountAsian + CountTotal + CountCrime + mode_lumen, family = binomial, data = fishnet_final3)
+
+summary(bi_model_na_2)
+
+str(final_net_bi)
+
+fishnet_final4 <-
+  fishnet_final3 %>%
+  mutate(CountAbove60_median_bi = case_when(CountAbove60 > median(CountAbove60) ~ 1, TRUE ~ 0),
+ CountBelow10_median_bi = case_when(CountBelow10 > median(CountBelow10) ~ 1, TRUE ~ 0),
+ CountTotal_median_bi = case_when(CountTotal > median(CountTotal)~1,TRUE ~0),
+ Count_NoCar_median_bi = case_when(CountNoCar > median(CountNoCar) ~ 1, TRUE ~ 0),
+ Count_Tree_median_bi = case_when(CountTree > median(CountTree) ~ 1, TRUE ~0),
+ WithLight = case_when(is.na(mode_lumen) ~ 0, TRUE ~ 1))
+
+fishnet_final_bi_no_na <-
+  final_net_bi %>%
+  mutate(CountAbove60_median_bi = 
+           case_when(CountAbove60 > median(CountAbove60) ~ 1, TRUE ~ 0),
+         CountBelow10_median_bi = case_when(CountBelow10 > median(CountBelow10) ~ 1, TRUE ~
+                                              0),
+         CountTotal_median_bi = case_when(CountTotal > median(CountTotal)~1,TRUE ~0),
+         Count_NoCar_median_bi = case_when(CountNoCar > median(CountNoCar) ~ 1, TRUE ~ 0),
+         Count_Tree_median_bi = case_when(CountTree > median(CountTree) ~ 1, TRUE ~0),
+         BrightLight = case_when(mode_lumen > 1000 ~ 1, TRUE ~ 0))
+
+#NA
+bi_model6 <-
+  glm(Withcrash ~ CountCrime + CountAbove60_median_bi + CountBelow10_median_bi + CountTotal_median_bi + Count_NoCar_median_bi +  Count_Tree_median_bi + WithLight, family = binomial, data = fishnet_final4)
+
+bi_model_crash_light <-
+  glm(Withcrash ~ WithLight, family = binomial, data = fishnet_final4)
+
+summary(bi_model_crash_light)
+
+#No NAs
+
+bi_model7 <-
+  glm(Withcrash ~ CountCrime + CountAbove60_median_bi + CountBelow10_median_bi + CountTotal_median_bi + Count_NoCar_median_bi +  Count_Tree_median_bi + BrightLight, family = binomial, data = fishnet_final_bi_no_na)
+
+summary(bi_model7)
+
+fishnet_final_bi_no_na %>%
+  st_drop_geometry()%>%
+  select(-uniqueID)%>%
+  gather(Variable, Value) %>%
+  ggplot(aes(Value)) + 
+    geom_histogram(bins = 30, color="blue", fill="blue", alpha=0.2) + 
+    facet_wrap(~Variable, scales = 'free')+
+    labs(title = "Distribution of Variables") + ylab("Count")  +
+  theme(panel.background = element_rect(colour = "grey50", size=3))
+
+  
+```
+
 
 ```{r}
 #Backward Selection
