@@ -1,21 +1,23 @@
 ---
-title: "Final"
+title: "Modeling pedestrian safety in dark conditions in Philadelphia"
 author: "Yihong Hu & Shujing Yi"
 date: "4/22/2022"
 output:
   html_document:
     keep_md: yes
     toc: yes
-    theme: cosmo
+    theme: united
     toc_float: yes
     code_folding: hide
     number_sections: yes
+    df_print: paged
+    fig_align: 'center'
   pdf_document:
     toc: yes
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE,cache = TRUE, warning = FALSE, message = FALSE)
+knitr::opts_chunk$set(echo = TRUE,cache = TRUE, warning = FALSE, message = FALSE,results = "hide")
 library(sf)
 library(tidycensus)
 library(tidyverse)
@@ -54,6 +56,9 @@ theme_map <- function(...) {
   )
 }
 
+root.dir = "https://raw.githubusercontent.com/urbanSpatial/Public-Policy-Analytics-Landing/master/DATA/"
+source("https://raw.githubusercontent.com/urbanSpatial/Public-Policy-Analytics-Landing/master/functions.r")
+
 ```
 
 # Introduction
@@ -64,9 +69,8 @@ In addition, 75% of these pedestrian crashes occurred during dark conditions. Th
 
 In Philadelphia, between 2016 to 2020, around 33% of the pedestrian crashes happened over night (18:00 - 7:00). The number jumps to 62% when looking into fatality cases. 
 
-The goal of this report is to discover the relationship between area brightness at the night and the number of pedestrian crashes in Philadelphia, PA. We want to see whether there is a need to improve pedestrian infrastructure at night. The brightness is measured by lumen size of the street light poles recorded by OpenData Philly. The 2016 - 2020 crash data is obtained from Pennsylvania Department of Transportation. Besides these two datasets, we also gathered demographic from 2020 5-year ACS and crime data to access neighborhood effects. The tree data is also gathered, because it might affect driver sight at night. 
 
-```{r cars}
+```{r cars, fig.align='center', out.width = '60%', out.height= '60%'}
 
 #Philly Street Light Poles
 Street_Poles_Data <- st_read("https://opendata.arcgis.com/datasets/9059a7546b6a4d658bef9ce9c84e4b03_0.geojson") 
@@ -178,7 +182,7 @@ ggplot(aes(HOUR_DA_FACTOR, SUM_HOUR, fill = "steelblue" )) +
 ```
 
 
-```{r catagorical}
+```{r catagorical, fig.align='center', out.width = '60%', out.height= '60%'}
 #Pedestrian crashes by time of the day
 Crash_Ped$HOUR_OF_DA <- as.numeric(Crash_Ped$HOUR_OF_DA)
 
@@ -200,7 +204,7 @@ Crash_Ped_PennDot_sum %>%
 ```
 
 
-```{r}
+```{r,fig.align='center', out.width = '60%', out.height= '60%'}
 
 #Fatal Pedestrian Crashes by time of the day
 
@@ -225,6 +229,12 @@ Crash_Ped_PennDot_Fatal_sum %>%
   geom_bar(position = "dodge", stat = "summary", fun.y = "mean", show.legend = FALSE, fill = "tomato2", width = 0.5) + xlab("Time of the day")+ylab("Total Crash Counts") + labs(title = "Fatal Pedestrian Crashes by Time of the Day", fill = "Time of the Day")+theme_minimal()+scale_fill_brewer(palette="PuRd")
 
 ```
+
+The goal of this report is to discover the correlation of physical, demographic, and environmental factors to the number of pedestrian crashes at night in Philadelphia, PA. This report seeks to see whether there is a need to improve pedestrian infrastructure at night. The data is gathered from PennDOT, OpenData Philly, Philadelphia Tree Inventory, Philadelphia Police District, and 5-year American Community Survey. The first section discusses the lighting conditions in Philadelphia. Area brightness is thought to be one of the major factors contributing to night pedestrian crashes.
+
+The second section introduces the analysis method, this include data collection process and regression models that are chosen for the analysis.
+
+The third section displays the results, and the forth section interprets the results and draws implications. Lastly, this report ends with a conclusion.  
 
 ## Mapping Street Light Poles in Philly
 
@@ -280,11 +290,76 @@ ggplot()+
 
 # Method
 
+## Data Collection
+
+The crash data is given by PennDOT on its website. We also collected and caluclated various relevant variables that might be associated with pedestrian crashes in an given area. To summerize, we collected data from:
+
+| (1) PennDOT public crash data 2016 - 2020
+|           a. Crash count 
+|                       i. Pedestrian crashes during dark conditions and daylight
+|                      ii. Fatal pedestrian crashes in dark conditions
+|                     iii. Fatal pedestrian crashes during daylight
+|                      iv. Total Pedestrian crashes
+|           b. Driver age
+|           c. Speed Limit
+|           d. Binary variables
+|                       i. Presence of drunk drivers 
+|                      ii. Presence of young drivers 
+|                     iii. Presence of clear weather
+|                      iv. Whether the creash occured on weekend
+|                       v. Pedestrian Gender (Female = 1, Male = 0)
+|
+| (2) Street Light Poles - OpenData Philly
+|           a. Lumen size
+|           b. Light pole count
+|  
+| (3) 2020 5-year block level American Community Survey (ACS):
+|           a. Total Population
+|           b. Age (Below 10 and Above 65) 
+|           c. Black, White, Asian Population
+|           d. Percent of Black, White, Aisian Population
+|           e. Commute Pattern (People who choose to commute with car versus other modes)
+|  
+| (4) Philadelphia Tree Inventory 2021
+|           a. Tree Count
+|
+| (5) Philadelphia Police Department 2016 - 2020
+|           a. Crime Count
+|           b. Crime Rate (based on the ACS population data)
+
+## Multivariant Regression
+
+Part I evaluates the variables that contribute to the possibility of a night pedestrian crash. We chose to develop a multivariate regression model, because it considers the interaction among all relevant variables. Each variable is evaluated while holding other relevant variables constant.
+
+## Binomial Logistic Regression
+
+Part II evaluates binomial outcomes in three ways: 
+  1. The odds of a fatal pedestrian crash versus non-fatal crash in dark conditions.
+  2. The odds of a fatal pedestrian crash versus non-fatal crash during daylight.
+  3. The odds of a pedestrian crash in dark conditions versus non-dark conditions 
+
+The purpose of this analysis is to see if there is really a difference in the factors that contribute to fatal crashes in dark conditions or during daylight. 
+
+In addition to fatal crashes, we also want to see what factors contribute to a dark-condition pedestrian crash the most. 
+
+This part of the analysis follows the method of another study by University of Wisconsin and Safe Streets Research & Consulting in California surrounding the issue of night pedestrian safety. 
+
+We believe that binomial logistic regression is appropriate in this case. Multivariate regression or bi-variate regression cannot deliver accurate results due to limited cases of fatal pedestrian crashes at Philly. 
+
+**The variables will be selected through backward selection method and tested by variance inflation factor (vif) to eliminate co-founding variables.**
+
+
+
 ## Fishent
 
 The first step to our analysis is to build a fishnet over Philadelphia. Each cell is 500ft * 500ft. Fishnet creates grids that smooths out the irregular boundaries given by census data. 
 
-### Light Counts
+
+
+### Data wrangling
+
+
+#### Light Counts
 
 The map below shows the street light pole counts in each fishnet cell.
 
@@ -298,7 +373,7 @@ fishnet <-
   st_make_grid(Philly_boundary2,
                cellsize = 500, 
                square = TRUE) %>%
-  .[Philly_boundary] %>%            
+  .[Philly_boundary2] %>%            
   st_sf() %>%
   mutate(uniqueID = rownames(.))%>%
   st_transform(crs = 4326)
@@ -327,7 +402,7 @@ ggplot() +
 
 It is not surprising that Center City has the highest number of street lights. However, this map does not correspond to Figure 1. North of Center City has 100 to 200 street poles, most of the them are low in lumen sizes. 
 
-### Crash Counts
+#### Crash Counts
 
 Fig 4 shows the pedestrian crash count in each fishnet cell between 2016 - 2020.
 
@@ -458,13 +533,16 @@ ggplot()+
 
 When looking into crashes that happened over dark conditions, the cases were more spread out over the city. 
 
-### Other data
 
-We wrangled other data and dropped them into fishnet cell. For ACS  group level data, we attached the data to the center point of the block group, and spatial joined it with the fishnet. These datasets include information on trees, age, race, and population.
+#### Other data
+
+We wrangled other data and dropped them into fishnet cell. These include:
+For ACS group level data, we attached the data to the center point of the block group, and spatial joined it with the fishnet. These datasets include information on trees, age, race, and population.
 
 We also extracted "flag" variables that we think are most relevant to the analysis. They are crashes related to drinking drivers, young drivers, weather, and weekends.
 
 ```{r Tree}
+#Read Tree Data
 Tree <-
 read.csv("PPR_Tree_Inventory_2021.csv")%>%
   st_as_sf(coords = c("LOC_X","LOC_Y"),crs = 4326) %>%
@@ -483,6 +561,7 @@ fishnet_5 <-
 ```
 
 ```{r demongraphic}
+#Read Demographic Data
 block_geo <-
   Philly_Census %>%
   select(geometry,GEOID)
@@ -562,6 +641,7 @@ fishnet8 <-
 
 ```{r crime}
 
+#Read Crime Data
 Crime_2020 <- read.csv("Crime_Incidents_2020.csv")
 
 colnamCleaning<-c("the_geom", "cartodb_id", "the_geom_webmercator")
@@ -572,33 +652,35 @@ Crime_2018 <- read.csv("Crime_Incidents_2018.csv")
 Crime_2017 <- read.csv("Crime_Incidents_2017.csv")
 Crime_2016 <- read.csv("Crime_Incidents_2016.csv")
 
+#Crime <-
+ # rbind(Crime_2020,Crime_2019,Crime_2018, Crime_2017, Crime_2016) %>%na.omit()%>%
+#   st_as_sf(coords = c("point_x","point_y"),crs = 4326)%>%
+ # mutate(CrimeCount=1)%>%
+#  st_join(fishnet)%>%
+ # group_by(uniqueID)%>%
+  # summarise(CountCrime = sum(CrimeCount))
+
 Crime <-
-  rbind(Crime_2020,Crime_2019,Crime_2018, Crime_2017, Crime_2016) %>%na.omit()%>%
-   st_as_sf(coords = c("point_x","point_y"),crs = 4326)%>%
-  mutate(CrimeCount=1)%>%
-  st_join(fishnet)%>%
-  group_by(uniqueID)%>%
-   summarise(CountCrime = sum(CrimeCount))
+  read.csv("crime_st_drop.csv")
 
-Crime_st_drop <-
-  Crime%>% st_drop_geometry()
-
-write.csv(Crime_st_drop,"crime_st_drop.csv")
+Crime$uniqueID <- as.character(Crime$uniqueID)
 
 fishnet9 <-
   Crime %>%
-  st_drop_geometry()%>%
   left_join(.,fishnet)%>%
+  select(-X) %>%
   st_as_sf()
 
 ggplot()+
   geom_sf(data = Philly_boundary)+
   geom_sf(data = fishnet9, aes(fill = CountCrime))+
   scale_fill_viridis(option = "D", direction = -1)+
-  labs(title = "Crime Count in Philly")
+  labs(title = "Crime Count in Philly") +
+  theme_map()
 ```
 
 ```{r ped fatal}
+# Filter out fatal pedestrian crashes
 
 Ped_Fatal_fish <-
   Crash_Ped_PennDot_Fatal %>%
@@ -617,12 +699,16 @@ fishnet11 <-
 ```
 
 ```{r more into fishnet}
+
+# Read driver and pedestrian information
+
 crash_flag_2016 <- read.csv("FLAG_PHILADELPHIA_2016.csv")
 crash_flag_2017 <- read.csv("FLAG_PHILADELPHIA_2017.csv")
 crash_flag_2018 <- read.csv("FLAG_PHILADELPHIA_2018.csv")
 crash_flag_2019 <- read.csv("FLAG_PHILADELPHIA_2019.csv")
 crash_flag_2020 <- read.csv("FLAG_PHILADELPHIA_2020.csv")
 
+#Mutate a column with a binary variable indicating the presence of a young driver
 crash_flag_all <- rbind(crash_flag_2016,crash_flag_2017,crash_flag_2018,crash_flag_2019,crash_flag_2020) %>%
   select(CRN, DRINKING_DRIVER, DRIVER_16YR, DRIVER_17YR, DRIVER_18YR,DRIVER_19YR,DRIVER_20YR)%>%
   mutate(young_driver = case_when(DRIVER_16YR == 1 ~ 1,
@@ -636,7 +722,7 @@ crash_flag_all <- rbind(crash_flag_2016,crash_flag_2017,crash_flag_2018,crash_fl
 Crash_Ped_drink_young <-
   left_join(Crash_Ped, crash_flag_all, by = "CRN")
 
-
+# Variable indicating a drunk driver
 Crash_Fish_drunk <-
   Crash_Ped_drink_young %>%
   filter(DRINKING_DRIVER == 1) %>%
@@ -742,6 +828,7 @@ fishnet16 <-
 ```
 
 ```{r fishnet join}
+# Creating Final Fishnet
 library(purrr)
 
 light_net2 <-
@@ -776,27 +863,27 @@ fishnet_final[is.na(fishnet_final)] <- 0
 fishnet_final2 <-
   gather(fishnet_final, Variable,value, -geometry,-uniqueID)
 
-vars <- unique(fishnet_final2$Variable)
+#vars <- unique(fishnet_final2$Variable)
 
-mapList <- list()
-for(i in vars){
-  mapList[[i]] <- 
-    ggplot() +
-      geom_sf(data = filter(fishnet_final2, Variable == i), aes(fill=value), colour=NA) +
-      scale_fill_viridis_b(option = "A", direction = -1) +
-      labs(title=i) + theme_map()}
+#mapList <- list()
+#for(i in vars){
+#  mapList[[i]] <- 
+#    ggplot() +
+#      geom_sf(data = filter(fishnet_final2, Variable == i), #aes(fill=value), colour=NA) +
+#      scale_fill_viridis_b(option = "A", direction = -1) +
+#      labs(title=i) + theme_map()}
 
-library(grid)
-library(gridExtra)
+#library(grid)
+#library(gridExtra)
 
-do.call(grid.arrange,c(mapList, ncol=3, top="Variable Counts by Fishnet", bottom = "Fig.6"))
+#do.call(grid.arrange,c(mapList, ncol=3, top="Variable Counts by Fishnet", bottom = "Fig.6"))
 
   
 ```
 
-Fig 6. shows the variables we collected in fishnets. 
 
-## Correlation
+
+### Correlation
 
 The correlation among variables are displayed in the correlation plot below by Pearson's R. The darker the red, the stronger the positive correlation. 
 
@@ -806,14 +893,18 @@ library(ggcorrplot)
 fishnet_nu <-
   fishnet_final %>%
   st_drop_geometry()%>%
-  select(-uniqueID)
+  select(-uniqueID, -X)
 
 cor(fishnet_nu)%>%
   ggcorrplot(hc.order = TRUE,
                       outline.color = "white")
 
 ```
+
+
+
 The correlation plot shows that pedestrian crashes are strongly correlated with crime. The correlation between pedestrian crashes occurred during dark condition and total pedestrian crashes is strong, suggesting that the proportion of night crashes over total crashes is consistent throughout the fishnet.
+
 
 We can look into pedestrian crashes occurred in dark condition and in daylight and other time separately.
 
@@ -876,7 +967,7 @@ Crash_Ped_Fish_crash$LightCount[is.na(Crash_Ped_Fish_crash$LightCount)] <- 0
 fishnet_nu_2 <-
   Crash_Ped_Fish_crash %>%
   st_drop_geometry()%>%
-  select(-uniqueID, -DarkConditionCount)
+  select(-uniqueID, -DarkConditionCount, -X)
 
 cor(fishnet_nu_2)%>%
   ggcorrplot(hc.order = TRUE, outline.color = "white")
@@ -901,17 +992,24 @@ ggplot(fishnet_long_night, aes(value, NightCrash)) +
             x=-Inf, y=Inf, vjust = 1.5, hjust = -.1) +
   geom_smooth(method = "lm", se = FALSE, colour = "black") +
   facet_wrap(~Variable, ncol = 3, scales = "free") +
-  labs(title = "Crash count as a function of variables") +
+  labs(title = "Night Crash count as a function of variables") +
   theme_map()
 ```
 
 Crime still has the highest correlation with pedestrian crashes at dark conditions. Number of lights has the second strongest correlation. Lumen size, black population, and young drivers ranked the third on correlation strength with dark condition pedestrian crashes. 
 
+
+
+# Results
+
 ## Multivariate Regression
 
 Multivariate regression is made with "pedestrian crashes at dark conditions" as the dependent variable. 
 
-```{r, results = 'asis'}
+```{r night crash}
+
+# Considering population density and calculate percent population
+
 z <- Crash_Ped_Fish_crash %>% st_drop_geometry()%>%
   mutate(CrimeRate = CountCrime/CountTotal,
          Percent_60 = CountAbove60/CountTotal,
@@ -922,6 +1020,12 @@ z <- Crash_Ped_Fish_crash %>% st_drop_geometry()%>%
          Percent_NoCar = CountNoCar/CountTotal)
 
 z$CrimeRate[is.infinite(z$CrimeRate)] <- 0
+z$Percent_60[is.infinite(z$Percent_60)] <- 0
+z$Percent_10[is.infinite(z$Percent_60)] <- 0
+z$Percent_White[is.infinite(z$Percent_White)] <- 0
+z$Percent_Black[is.infinite(z$Percent_Black)] <- 0
+z$Percent_Asian[is.infinite(z$Percent_Asian)] <- 0
+z$Percent_NoCar[is.infinite(z$Percent_NoCar)] <- 0
 
 str(Crash_Ped_Fish_crash)
 # All variables
@@ -931,217 +1035,372 @@ library(car)
 
 model1 <- lm(NightCrash ~ CountBelow10 + CountAbove60 + CountNoCar + CountTree + CountWhite + CountAsian + CountCrime + CrimeRate + CountBlack + mean_lumen + MeanSpeed + LightCount, data = z)
 
+summary(model1)
+
+#Remove co-founding variables
 model2 <- lm(NightCrash ~ Percent_60 +Percent_10 + Percent_Black + Percent_Asian + CrimeRate + mean_lumen + MeanSpeed + LightCount + CountTree + CountNoCar, data = z)
+
+summary(model2)
 
 model3 <- lm(NightCrash ~ Percent_60 +Percent_10 + Percent_Black + Percent_Asian + CrimeRate + mean_lumen + MeanSpeed + LightCount + CountTree + Percent_NoCar, data = z)
 
-summary(model2)
+summary(model3)
 
 #Backward Selection
 
 step(lm(NightCrash ~ Percent_60 +Percent_10 + Percent_Black + Percent_Asian + CrimeRate + mean_lumen + MeanSpeed + LightCount + CountTree + Percent_NoCar, data = z))
 
-model4 <- lm(NightCrash ~ Percent_60 +Percent_10 + Percent_Black + Percent_Asian + CrimeRate + mean_lumen + LightCount + CountTree + Percent_NoCar, data = z)
+model4 <- lm(NightCrash ~ Percent_60  + Percent_10 + Percent_Black  + CrimeRate + mean_lumen + LightCount + CountTree + Percent_NoCar, data = z)
 
 library(stargazer)
 
 summary(model4)
 
+```
+
+```{r, result = 'asis'}
 stargazer(model1,model2,model3,model4, type = "text",style = "ajps")
 
 ```
-In model 1, we used variables without considering the effect of population. In model 2, 3, and 4, we considered population by making all relevant variables "percent of the population" in each fishnet cell.
+In model 1, we used variables without considering the effect of population. In model 2, 3, and 4, we considered population by making all relevant variables into "percent of the population" in each fishnet cell.
 
-Model 4 has all the significant variables. We can see that percent of people without cars has the greatest impact on pedestrian safety. For every percent increase in people without cars, there is an increase of 3.4 crashe in an area. 
+Model 4 has all the significant variables. We can see that percent of people commuting without cars has the greatest impact on pedestrian safety. For every percent increase in population commuting without cars, there is an increase of 3.4 crashes in the area. 
 
-Percent of white population and percent of black population are co-founding factors, so we only included percent black population in the analysis. Black population is the most significant variable among Black, White, and Asian population. The model shows that for every percent increase in Black population in a given area, the number of crashes will increase by 1.3. 
+Percent of white population and percent of black population are co-founding factors, so we only included percent of Black population in the analysis. Black population is the most significant variable among Black, White, and Asian population. The model shows that for every percent increase in the Black population , the number of crashes will increase by 1.0 in a given area. 
 
-Percent of Asian population also has an great effect, however, much less significant than percent of Black population. The number of pedestrian crashes will increase by 2.6 for every percent increase in Asian population.
+Interestingly, according to the model, a lower number of elders above the age 60 is associated with a higher number of crashes. Every increase in the number of children is associated with an increase of 2 pcases of pedestrian crashes in dark conditions.
 
-Interestingly, according to the mode, the less the number of elders above the age 60, the more the crashes. Perhaps, this is due to the fact that the city does not have many elderly anyways. 
+One would expect that the lumen size and light counts would be negatively associated with pedestrian crashes over dark conditions. Our result shows differently. The result shows that, though very sightly, the higher the mean lumen size in a fishnet cell, the more chance of pedestrian crashes over dark conditions, while holding other variables constant. 
 
-One would expect the lumen size would be negatively associated with pedestrian crashes over night. Our results show differently. The result shows that, though very sightly, the higher the mean lumen size in an fishnet cell, the more chance of pedestrian crashes over night, while holding other variables constant. 
+Tree count demonstrates a negative association with night pedestrian crashes. This means a lower number of trees contributes to a higher number of crashes in a given area. 
 
-Tree count demonstrtes a negative association with night pedestrian crashes. This means the less the tree, the more the crashes. However based on model 4, the effect is too small and negaligible. 
+In addition, our results show that areas with higher amount of crime is significant associated with higher amount of pedestrian crashes in dark conditions. 
 
-```{r}
+The number of fatal deaths occur at night is limited. Instead of multivariate, we will run a binomial logit model.
 
-#WithFatalCrash
+Overall, the R-squared for the final model is 31%, which we believe it shows a good fit for explaining real-life data where so many circumstances could be involved.
 
-fishnet_long2 <-
-  fishnet_final %>%
-  st_drop_geometry()%>%
-  select(-uniqueID,-CrashCount, -PedCrashCount)%>%
-  gather(Variable, value, -FatalCount)
 
-fishnet_cor2 <-
-  fishnet_final %>%
-  st_drop_geometry()%>%
-  dplyr::select(-uniqueID, -CrashCount, -PedCrashCount)%>%
-  gather(Variable, value, -FatalCount)%>%
-  dplyr::group_by(Variable) %>%
-  dplyr::summarize(correlation = cor(value, FatalCount, use = "complete.obs"))
 
-ggplot(fishnet_long2, aes(value, FatalCount)) +
-  geom_point(size = 0.1) +
-  geom_text(data = fishnet_cor2, aes(label = paste("r =", round(correlation, 2))),
-            x=-Inf, y=Inf, vjust = 1.5, hjust = -.1) +
-  geom_smooth(method = "lm", se = FALSE, colour = "black") +
-  facet_wrap(~Variable, ncol = 3, scales = "free") +
-  labs(title = "Crash count as a function of variables") +
-  theme_map()
-```
-
-```{r create binary}
-#light count
-final_net_bi <-
-  fishnet_final%>%
-  mutate(WithLight = case_when(mode_lumen > 0 ~ 1, TRUE ~ 0),
-         majoritywhite = case_when(CountWhite/CountTotal > 0.5 ~ 1, TRUE ~ 0),
-         Withcrash = case_when(PedCrashCount>0 ~1, TRUE ~0))
-```
-
-```{r model}
-library(FNN)
-library(car)
-str(final_net_bi)
-
-bi_model <-
-  glm(Withcrash ~ CountBelow10 + CountAbove60 + CountNoCar + CountWhite + CountAsian + CountBlack + CountTotal + CountCrime + mode_lumen, family = binomial, data = final_net_bi)
-summary(bi_model)
-
-bi_model2 <-
-  glm(Withcrash ~ CountBelow10 + CountAbove60 + CountNoCar + CountWhite + CountAsian + CountBlack + CountTotal + CountCrime + mode_lumen + WithLight + majoritywhite, family = binomial, data = final_net_bi)
-
-bi_model3 <-
-  glm(Withcrash ~ CountBelow10 + CountAbove60 + CountNoCar + CountBlack + CountTotal + CountCrime + WithLight + majoritywhite, family = binomial, data = final_net_bi)
-
-bi_model4 <-
-  glm(Withcrash ~ CountBelow10 + CountAbove60 + CountNoCar + CountWhite + CountAsian + CountBlack + CountTotal + CountCrime + mode_lumen + WithLight + majoritywhite, family = binomial, data = final_net_bi)
-
-vif(bi_model4)
-
-bi_model5 <-
-  glm(Withcrash ~ CountBelow10 + CountAbove60 + CountNoCar + CountAsian + CountTotal + CountCrime + mode_lumen + WithLight + majoritywhite, family = binomial, data = final_net_bi)
-
-summary(bi_model5)
-
-```
+### Moran's I
 
 ```{r}
-fishnet_nu %>%
-  gather(Variable, Value) %>%
-  ggplot(aes(Value)) + 
-    geom_histogram(bins = 30, color="blue", fill="blue", alpha=0.2) + 
-    facet_wrap(~Variable, scales = 'free')+
-    labs(title = "Distribution of Variables") + ylab("Count")  +
-  theme(panel.background = element_rect(colour = "grey50", size=3))
+library(scales)
+library(grid)
+library(gridExtra)
+library(spdep)
 
-fishnet_final3 <- fishnet_final
+z_fish <-
+  z %>%
+  right_join(fishnet)%>%
+  st_as_sf()
 
-fishnet_final3$uniqueID <- as.numeric(fishnet_final3$uniqueID)
+z_fish$NightCrash[is.na(z_fish$NightCrash)] <- 0
 
-str(fishnet_final3)
+final_net.nb <- poly2nb(as_Spatial(z_fish), queen=TRUE)
 
-fishnet_final3$CountBelow10[fishnet_final3$CountBelow10 == 0] <- NA
-fishnet_final3$CountAbove60[fishnet_final3$CountAbove60 == 0] <- NA
-fishnet_final3$CountCountNoCar[fishnet_final3$CountNoCar == 0] <- NA
-fishnet_final3$CrashCount[fishnet_final3$CrashCount == 0] <- NA
-fishnet_final3$CountTree[fishnet_final3$CountTree== 0] <- NA
-fishnet_final3$CountWhite[fishnet_final3$CountWhite == 0] <- NA
-fishnet_final3$CountAsian[fishnet_final3$CountAsian == 0] <- NA
-fishnet_final3$CountTotal[fishnet_final3$CountTotal == 0] <- NA
-fishnet_final3$CountCrime [fishnet_final3$CountCrime  == 0] <- NA
-fishnet_final3$CountBlack[fishnet_final3$CountBlack == 0] <- NA
-fishnet_final3$mode_lumen[fishnet_final3$mode_lumen == 0] <- NA
-fishnet_final3$PedCrashCount[is.na(fishnet_final3$PedCrashCount)] <- 0
+final_net.weights <- nb2listw(final_net.nb, style="W", zero.policy=TRUE)
 
-fishnet_final3 %>%
-  st_drop_geometry()%>%
-  select(-uniqueID)%>%
-  gather(Variable, Value) %>%
-  ggplot(aes(Value)) + 
-    geom_histogram(bins = 30, color="blue", fill="blue", alpha=0.2) + 
-    facet_wrap(~Variable, scales = 'free')+
-    labs(title = "Distribution of Variables") + ylab("Count")  +
-  theme(panel.background = element_rect(colour = "grey50", size=3))
+final_net.localMorans <- 
+  cbind(
+    as.data.frame(localmoran(z_fish$NightCrash, final_net.weights)),
+    as.data.frame(z_fish)) %>% st_sf()%>% 
+  dplyr::select("Night Crash Count" =  NightCrash, "Local Morans I" = Ii,
+                    P_Value = "Pr(z != E(Ii))") %>%
+      mutate("Significant Hotspots" = ifelse(P_Value <= 0.0000001, 1, 0))%>%
+      gather(Variable, Value, -geometry)
 
-fishnet_final3 <-
-  fishnet_final3 %>%
-  mutate(CountAbove60_median_bi = case_when(CountAbove60 > median(CountAbove60) ~ 1, TRUE ~ 0),
- CountBelow10_median_bi = case_when(CountBelow10 > median(CountBelow10) ~ 1, TRUE ~ 0),
- CountTotal_median_bi = case_when(CountTotal > median(CountTotal)~1,TRUE ~0),
- Count_NoCar_median_bi = case_when(CountNoCar > median(CountNoCar) ~ 1, TRUE ~ 0),
- Count_Tree_median_bi = case_when(CountTree > median(CountTree) ~ 1, TRUE ~0),
- Withcrash = case_when(PedCrashCount > 0~ 1, TRUE ~0))
+vars <- unique(final_net.localMorans$Variable)
+varList <- list()
 
-bi_model_na <-
-  glm(Withcrash ~ CountBelow10 + CountAbove60 + CountNoCar + CountWhite + CountAsian + CountBlack + CountTotal + CountCrime + mode_lumen, family = binomial, data = fishnet_final3)
+for(i in vars){
+  varList[[i]] <- 
+    ggplot() +
+      geom_sf(data = filter(final_net.localMorans, Variable == i), 
+              aes(fill = Value), colour=NA) +
+      scale_fill_viridis(option = "A") +
+      labs(title=i) +
+      theme_map() + theme(legend.position="bottom")}
 
-summary(bi_model_na)
-vif(bi_model_na)
+do.call(grid.arrange,c(varList, ncol = 4, top = "Local Morans I statistics, Night Crash"))
 
-bi_model_na_2 <-
-  glm(Withcrash ~ CountBelow10 + CountAbove60 + CountNoCar  + CountAsian + CountTotal + CountCrime + mode_lumen, family = binomial, data = fishnet_final3)
-
-summary(bi_model_na_2)
-
-str(final_net_bi)
-
-fishnet_final4 <-
-  fishnet_final3 %>%
-  mutate(CountAbove60_median_bi = case_when(CountAbove60 > median(CountAbove60) ~ 1, TRUE ~ 0),
- CountBelow10_median_bi = case_when(CountBelow10 > median(CountBelow10) ~ 1, TRUE ~ 0),
- CountTotal_median_bi = case_when(CountTotal > median(CountTotal)~1,TRUE ~0),
- Count_NoCar_median_bi = case_when(CountNoCar > median(CountNoCar) ~ 1, TRUE ~ 0),
- Count_Tree_median_bi = case_when(CountTree > median(CountTree) ~ 1, TRUE ~0),
- WithLight = case_when(is.na(mode_lumen) ~ 0, TRUE ~ 1))
-
-fishnet_final_bi_no_na <-
-  final_net_bi %>%
-  mutate(CountAbove60_median_bi = 
-           case_when(CountAbove60 > median(CountAbove60) ~ 1, TRUE ~ 0),
-         CountBelow10_median_bi = case_when(CountBelow10 > median(CountBelow10) ~ 1, TRUE ~
-                                              0),
-         CountTotal_median_bi = case_when(CountTotal > median(CountTotal)~1,TRUE ~0),
-         Count_NoCar_median_bi = case_when(CountNoCar > median(CountNoCar) ~ 1, TRUE ~ 0),
-         Count_Tree_median_bi = case_when(CountTree > median(CountTree) ~ 1, TRUE ~0),
-         BrightLight = case_when(mode_lumen > 1000 ~ 1, TRUE ~ 0))
-
-#NA
-bi_model6 <-
-  glm(Withcrash ~ CountCrime + CountAbove60_median_bi + CountBelow10_median_bi + CountTotal_median_bi + Count_NoCar_median_bi +  Count_Tree_median_bi + WithLight, family = binomial, data = fishnet_final4)
-
-bi_model_crash_light <-
-  glm(Withcrash ~ WithLight, family = binomial, data = fishnet_final4)
-
-summary(bi_model_crash_light)
-
-#No NAs
-
-bi_model7 <-
-  glm(Withcrash ~ CountCrime + CountAbove60_median_bi + CountBelow10_median_bi + CountTotal_median_bi + Count_NoCar_median_bi +  Count_Tree_median_bi + BrightLight, family = binomial, data = fishnet_final_bi_no_na)
-
-summary(bi_model7)
-
-fishnet_final_bi_no_na %>%
-  st_drop_geometry()%>%
-  select(-uniqueID)%>%
-  gather(Variable, Value) %>%
-  ggplot(aes(Value)) + 
-    geom_histogram(bins = 30, color="blue", fill="blue", alpha=0.2) + 
-    facet_wrap(~Variable, scales = 'free')+
-    labs(title = "Distribution of Variables") + ylab("Count")  +
-  theme(panel.background = element_rect(colour = "grey50", size=3))
-
-  
 ```
 
+Moran's I indicates that there are some very strong clustering of crashes (p-value < 0.0000001). This might show some neighborhood effects. Certainly there is a clustering at the Center City and along major streets, such as Market Street and Board Street. 
+
+
+
+## Binomial Logit Model
+
+All models are cleaned and trimmed by backward selection methods to have the lowest Akaike Information Criterion (AIC) number, as well as Variance Inflation Factor tests to make sure there is no confounding factors. Please unfold the code to see more details. 
+
+### Fatal pedestrian crashes at night
+
+```{r Mark night and fatal crash}
+#Night and Fatal crashes marked with 1
+Crash_Ped_fatal_night <-
+  Crash_Ped_night %>%
+  mutate(Fatal_night = case_when(FATAL_COUN > 0 ~ 1))%>%
+  filter(Fatal_night == 1) %>%
+  select(CRN, Fatal_night)
+
+Crash_Ped_fatal_night_w_all <-
+ Crash_Ped_all %>%
+  left_join(st_drop_geometry(Crash_Ped_fatal_night))%>%
+  st_as_sf
+
+Crash_Ped_fatal_night_w_all$Fatal_night[is.na(Crash_Ped_fatal_night_w_all$Fatal_night)] <- 0
+
+```
+
+```{r binomial logit}
+#Adding speed limit variable
+Crash_Ped_fatal_night_w_all <-
+  crash_road_all %>%
+  select(SPEED_LIMIT,CRN) %>%
+  right_join(Crash_Ped_fatal_night_w_all)
+
+z2 <- Crash_Ped_fatal_night_w_all %>% 
+ mutate(CrimeRate = CountCrime/CountTotal,
+         Percent_60 = CountAbove60/CountTotal,
+         Percent_10 = CountBelow10/CountTotal,
+         Percent_Black = CountBlack/CountTotal,
+         Percent_White = CountWhite/CountTotal,
+         Percent_Asian = CountAsian/CountTotal,
+         Percent_NoCar = CountNoCar/CountTotal)%>%
+  st_as_sf()
+
+crash_person_2016 <- read.csv("PERSON_PHILADELPHIA_2016.csv")
+crash_person_2017 <- read.csv("PERSON_PHILADELPHIA_2017.csv")
+crash_person_2018 <- read.csv("PERSON_PHILADELPHIA_2018.csv")
+crash_person_2019 <- read.csv("PERSON_PHILADELPHIA_2019.csv")
+crash_person_2020 <- read.csv("PERSON_PHILADELPHIA_2020.csv")
+
+
+#Pedestrian Gender 
+crash_person_all <- rbind(crash_person_2016,crash_person_2017,crash_person_2018,crash_person_2019,crash_person_2020) %>% select(CRN, AGE,SEX,PERSON_TYPE) %>% na.omit %>% mutate(GenderF = case_when(SEX == "F" & PERSON_TYPE == 7 ~ 1, TRUE~0))%>%  distinct(CRN, .keep_all = TRUE) %>% select(CRN,GenderF)
+
+#Driver_age
+crash_person_all_driver_age <- rbind(crash_person_2016,crash_person_2017,crash_person_2018,crash_person_2019,crash_person_2020) %>% select(CRN, AGE,SEX,PERSON_TYPE) %>% filter(PERSON_TYPE == 1) %>%  distinct(CRN, .keep_all = TRUE) %>% mutate(drive_age = AGE)%>%select(CRN,drive_age)
+
+
+
+z2_1 <- crash_person_all %>%
+  right_join(z2) %>%
+  left_join(crash_person_all_driver_age) %>%
+  filter(dark ==1)
+
+crash_flag_all_2 <- rbind(crash_flag_2016,crash_flag_2017,crash_flag_2018,crash_flag_2019,crash_flag_2020)%>%
+  select(CRN,ILLUMINATION_DARK) 
+
+z2_1 <- crash_flag_all_2 %>%
+  right_join(z2_1)
+
+#Add No light variable
+z2_1 <- z2_1 %>%
+  mutate(nolight = case_when(ILLUMINATI == 3 ~1,TRUE~0))
+
+z2_1$drive_age[is.na(z2_1$drive_age)] <- 0
+
+
+model_bi_1 <-
+  glm(Fatal_night ~ weekend + DRINKING_DRIVER + sunny + young_driver + mean_lumen + HOUR_OF_DA + DAY_OF_WEE + SPEED_LIMIT + Percent_10 + Percent_60 + Percent_Black + Percent_White + Percent_Asian + Percent_NoCar + CountTree + GenderF + CrimeRate + drive_age, family = "binomial", data = z2_1) 
+
+summary(model_bi_1)
+
+vif(model_bi_1)
+
+model_bi_2 <-
+  glm(Fatal_night ~ weekend + DRINKING_DRIVER + sunny + young_driver + mean_lumen  + HOUR_OF_DA + SPEED_LIMIT + Percent_10 + Percent_60 + Percent_Black + Percent_NoCar + Percent_Asian + CountTree + GenderF + nolight + drive_age, family = "binomial", data = z2_1) 
+
+summary(model_bi_2)
+
+#backward selection
+step(glm(Fatal_night ~ weekend + DRINKING_DRIVER + sunny + young_driver + mean_lumen + SPEED_LIMIT + Percent_10 + Percent_60 + Percent_Black + Percent_NoCar + CountTree + GenderF + CrimeRate + nolight+ drive_age+ Percent_Asian,family="binomial",data = z2_1))
+
+model_bi_3 <-
+  glm(formula = Fatal_night ~ DRINKING_DRIVER + mean_lumen  + 
+    SPEED_LIMIT + Percent_Black + CountTree,family = "binomial",data= z2_1)
+
+summary(model_bi_3)
+
+#All clear under 5
+vif(model_bi_3)
+```
+
+```{r, results = 'asis'}
+
+stargazer(model_bi_1,model_bi_2,model_bi_3, type = "html", column.sep.width = "10pt", align=TRUE)
+
+```
+
+```{r, results = TRUE}
+
+exp(coef(model_bi_3))
+100 * (exp(coef(model_bi_3))-1)
+
+```
+
+The binomial logit model shows that drunk diver and speed limit are the most significant factors to predict the possibility of a fatal pedestrian crash (versus crashes without fatal outcomes) at night.
+
+If the driver were drunk, the odds of a pedestrian having a fatal outcome would be almost five times more likely comparing to a normal driver. 
+
+With every increase in speed limit on the road, the odds of a fatal pedestrian crash would increase by 9%.
+
+Fatal pedestrian at night is also strongly related to tree counts. With each increase in the number of tree within the fishnet area of the crashes, the odds of fatal pedestrian crash is reduced by 0.4%. 
+
+The percent of Black population is also a significant factor. In Philadelphia, most fatal crashes occurred in places where the majority of the population is white. It is worth to note that with every increase in the percent of Black population, the odds of a fatal pedestrian crash is reduced by 64%. 
+
+Surprisingly, the lumen size, though shows a significant correlation with fatal pedestrian crash, is positively related to fatal pedestrian crashes. This means, with every increase of lumen size in the crash area, the odds of a fatal pedestrian crash is increased by 0.77. The result is counterintuatitive, as it is expected that the darker the area, the more likely the fatal crash would occur. 
+
+
+
+### Fatal pedestrian crashes during the day
 
 ```{r}
-#Backward Selection
+## Filter Out all crashes during the day
+z4 <- crash_person_all %>%
+  right_join(z2) %>%
+  left_join(crash_person_all_driver_age) %>%
+  filter(dark ==0)
 
-step(glm(Withcrash ~ CountBelow10 + CountAbove60 + CountNoCar + CountWhite + CountAsian + CountBlack + CountTotal + CountCrime + mode_lumen + WithLight + majoritywhite, family = binomial, data = final_net_bi))
+z4$drive_age[is.na(z4$drive_age)]<-0
 
+crash_flag_all_2 <- rbind(crash_flag_2016,crash_flag_2017,crash_flag_2018,crash_flag_2019,crash_flag_2020)%>%
+  select(CRN,ILLUMINATION_DARK) 
+
+z4 <- crash_flag_all_2 %>%
+  right_join(z4)
+
+z4 <- z4 %>%
+  mutate(nolight = case_when(ILLUMINATI == 3 ~ 1,TRUE~0), fatal_day = case_when(FATAL_COUN > 0  ~1,TRUE~0))
+         
+         
+model_bi3_1 <-
+  glm(fatal_day ~ weekend + DRINKING_DRIVER + sunny + young_driver + mean_lumen  + HOUR_OF_DA + DAY_OF_WEE + SPEED_LIMIT + Percent_10 + Percent_60 + Percent_Black + Percent_White + Percent_Asian + Percent_NoCar + CountTree + GenderF + CrimeRate +drive_age, family = "binomial", data = z4) 
+
+summary(model_bi3_1)
+
+model_bi3_2 <-
+  glm(fatal_day ~ weekend + DRINKING_DRIVER + sunny + young_driver + mean_lumen + sunny + HOUR_OF_DA + SPEED_LIMIT + Percent_10 + Percent_60 + Percent_Black + Percent_NoCar + ILLUMINATION_DARK + CountTree + GenderF, family = "binomial", data = z4) 
+
+summary(model_bi3_2)
+
+#backward selection
+step(glm(fatal_day ~ weekend + DRINKING_DRIVER + sunny + young_driver + mean_lumen + SPEED_LIMIT + Percent_10 + Percent_60 + Percent_Black + Percent_NoCar + ILLUMINATION_DARK + CountTree + GenderF + CrimeRate + nolight + drive_age, family="binomial",data = z4))
+
+model_bi3_3 <-
+  glm(formula = fatal_day ~ DRINKING_DRIVER + young_driver + 
+    SPEED_LIMIT + Percent_NoCar, family = "binomial", data = z4)
+
+
+summary(model_bi3_3)
+
+vif(model_bi3_3)
+#All clear under 5
+```
+
+```{r, results = 'asis'}
+
+stargazer(model_bi_1,model_bi_2,model_bi_3, type = "html", align=TRUE)
 
 ```
+
+```{r, results = TRUE}
+
+exp(coef(model_bi3_3))
+100 * (exp(coef(model_bi3_3))-1)
+
+```
+
+Drunk drivers and speed limit are also the two significant factors related to fatal pedestrian crashes during the day. The odds of a fatal pedestrian crash is six times higher when a drunk driver involved. Speed limit becomes a more significant factor during the day accounting for fatal pedestrian crashes. For every increase in speed limit, the odds of fatal pedestrian crashes during the day is increased by 11%. 
+
+Percent of population without cars become the most significant factors in this case. For every percent increase in population without car in the areas where crashes occur, the odds of them being fatal are almost 1074% higher. 
+
+
+
+### The odds of pedestrian crashes at night versus druing the day
+
+```{r Nighe Pedestrian Crashes}
+z3 <- crash_person_all %>%
+  right_join(z2) %>% 
+  left_join(crash_person_all_driver_age) %>%
+  mutate(darkcondition = case_when(ILLUMINATI == 2 | ILLUMINATI == 3 ~ 1, TRUE ~ 0))
+
+z3$drive_age[is.na(z3$drive_age)] <- 0 
+
+model_bi2_1 <-
+  glm(darkcondition ~ weekend + DRINKING_DRIVER + sunny + young_driver + mean_lumen + WEATHER + SPEED_LIMIT + Percent_10 + Percent_60 + Percent_Black + Percent_White + Percent_Asian + Percent_NoCar + CountTree + GenderF + drive_age, family = "binomial", data = z3) 
+
+vif(model_bi2_1)
+
+#Delete co-founding and insignificant variables
+
+model_bi2_2 <-
+  glm(darkcondition ~ weekend + DRINKING_DRIVER + sunny + SPEED_LIMIT + Percent_10 + Percent_Black + Percent_NoCar + CountTree + drive_age, family = "binomial", data = z3) 
+
+summary(model_bi2_2)
+
+#Backward selection
+step(glm(darkcondition ~ weekend + DRINKING_DRIVER + sunny + SPEED_LIMIT + Percent_10 + Percent_Black + Percent_NoCar + CountTree + drive_age, family = "binomial", data = z3))
+
+#Backward selection shows that second model is the best already.
+
+vif(model_bi2_2)
+
+#All clear out, vif below 5.
+```
+
+```{r results = 'asis'}
+
+stargazer(model_bi2_1, model_bi2_2, type = "html", align=TRUE)
+
+```
+
+```{r, results = TRUE}
+
+exp(coef(model_bi2_2))
+100 * (exp(coef(model_bi2_2))-1)
+
+```
+
+When we look at the possibility for a pedestrian crash at night, drunk driver, speed limit, percent of population, percent of population commuting without cars, and tree counts again appear to be significant variables. A drunk driver increases the odds of a night pedestrian night crash by 327%. Every increase in speed limit increases the odd by 4%. It is interesting to note that black population here is more vulnerable to crash at night: every percent increase in black population increases the odd of night pedestrian by 25%. In addition, every percent increase in population commuting without cars, the odds increase by 214%. Finally, every increase in tree count is associated with a reduction of 0.05% in pedestrian crashes at night.
+
+Some new variables have become significant when we look at all the pedestrian crashes together. A clear, sunny weather is associated with a 40% reduction in odds of night pedestrian crashes. Every percent increase in number of children below age 10 increases the odds by 109%. We expect that age would have a negative association with the odds of night pedestrian crashes. Based on the model, however, every increase in the age of driver is associated with a 0.25% increase in the odds of a night pedestrian crash. 
+
+A night pedestrian crash is more likely during weekend with an increased odds of 18%.
+
+
+
+
+
+# Discussion
+
+We summarized the results into 7 takeaways：
+
+1. Drunk driving and speed limits still appear to be the most significant variables throughout the analysis. They increase the risk of pedestrian crashes and fatal pedestrian crashes in both dark condition and during daylight.
+
+2. Our results also finds the significance of *tree count* in relation to pedestrian safety in dark conditions. Higher number of trees are associated with lower number of pedestrian crashes both in dark conditions and during daylight. This might implies that trees might contribute to pedestrian safety beyond asethetic and environmental values. 
+
+3. Areas with higher percentage of commuters who use bike, walk, and have significantly higher chance to pedestrian crashes overall. This, **however**, is not a significant variable when comes to fatal pedestrian crashes in dark conditions.
+
+4. Areas with higher percentage of Black population are more prone to night pedestrian crash. Nevertheless, these crashes have less chance to turn into fatal crashes. 
+
+5. Lumen size is a significant variable when looking at pedestrian crash cases at night. The results show that the higher the lumen size, the more pedestrian crashes and fatal pedestrian crashes occur in dark conditions. One reason could be that night pedestrian crashes occur along main roads were already pretty well lit, this means there are other factors more significant than brightness that contribute to pedestrian crashes at night. 
+
+6. Pedestrian gender is not a significant variable based on our results. There might be an assumption that women are more volunerable to crashes, but our models do not show that. 
+
+7. Areas with more children are more prone to pedestrian crashes at night. 
+
+
+
+
+
+
+# Conclusion 
+
+We acknowledge many limitations of this study. First, the size of the data set might not allow substantive analysis. The fatal crashes at night between 2016 - 2020 in Philadelphia only counts to 119 cases. This could be solved by expanding the study time frame or expanding the geography of the study area. Second, the models do not account for neighborhood effects. Though we do account factors such as racial composition, age, and crime, the analysis could also include variables such as income and car ownership that have showed tendency of clustering. The next step is to have a spacial generalizability test. 
+
+Our results may provide some insights into pedestrian safety in dark conditions. First, tree planting might have values beyond environmental or aesthetic reasons. As shown by the results, it is related to pedestrian safety at night. So far, very limited literature have looked into the relation of greens related to pedestrian safety. Second, we found out that areas with higher percentage of Black population have higher risk of pedestrian crashes. This finding aligns with most of the literature. These crashes are, however, not fatal. In fact, the higher percentage of Black population is related significantly to lower number of fatal crashes in dark conditions. Third, our results do show that places with high non-vehicular commuters demonstrate strong association high risk in pedestrian crashes, which is not too surprising. Again, quality infrastructure in these places are required to reduce pedestrian risks, as most people do not have other options but required to walk, bike, or take public transit to work. 
+
+
