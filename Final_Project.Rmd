@@ -68,12 +68,11 @@ source("https://raw.githubusercontent.com/urbanSpatial/Public-Policy-Analytics-L
 
 # Introduction
 
-Pedestrian fatalities have been accelerating for the past decade in the US. Fatality and Injury Reporting System (FARS) reports that 6515 pedestrians died in vehicle crashes in 2020, accounting for 18% of traffic fatalities. The number grew by 50% from 2010, when total traffic fatalities have only increased by 18%. 
+Pedestrian fatalities have been accelerating for the past decade in the US. Fatality and Injury Reporting System (FARS) reports that 6515 pedestrians died in vehicle crashes in 2020, accounting for 18% of traffic fatalities. The number grew by 50% from 2010, when total traffic fatalities have only increased by 18%.
 
-In addition, 75% of these pedestrian crashes occurred during dark conditions. This is a more critical issue in low-income neighborhoods where most people would at least walk for a portion of their commuting trips. They include seniors and children, who rely on walking and public transit to access food, health, education, and other public services. It is also an equity issue. A 2022 study reveals that Black and Native American pedestrians have much higher chance to involve in fatal crashes at night comparing to other races. 
+In addition, 75% of these pedestrian crashes occurred during dark conditions. This is a more critical issue in low-income neighborhoods where most people would at least walk for a portion of their commuting trips. They include seniors and children, who rely on walking and public transit to access food, health, education, and other public services. It is also an equity issue. A 2022 study reveals that Black and Native American pedestrians have much higher chance to involve in fatal crashes at night comparing to other races.
 
-In Philadelphia, between 2016 to 2020, around 33% of the pedestrian crashes happened over night (18:00 - 7:00). The number jumps to 62% when looking into fatality cases. 
-
+In Philadelphia, between 2016 to 2020, around 33% of the pedestrian crashes happened over night (18:00 - 7:00). The number jumps to 62% when looking into fatality cases.
 
 ```{r cars, fig.align='center', out.width = '60%', out.height= '60%'}
 
@@ -186,7 +185,6 @@ ggplot(aes(HOUR_DA_FACTOR, SUM_HOUR, fill = "steelblue" )) +
 
 ```
 
-
 ```{r catagorical, fig.align='center', out.width = '60%', out.height= '60%'}
 #Pedestrian crashes by time of the day
 Crash_Ped$HOUR_OF_DA <- as.numeric(Crash_Ped$HOUR_OF_DA)
@@ -207,7 +205,6 @@ Crash_Ped_PennDot_sum %>%
   ggplot(aes(TIME_OF_DAY, sum_crash))+
   geom_bar(position = "dodge", stat = "summary", fun.y = "mean", show.legend = FALSE, fill = "wheat2", width = 0.5) + xlab("Time of the day")+ylab("Total Crash Counts") + labs(title = "Pedestrian Crashes by Time of the Day") + theme_minimal()
 ```
-
 
 ```{r,fig.align='center', out.width = '60%', out.height= '60%'}
 
@@ -239,12 +236,11 @@ The goal of this report is to discover the correlation of physical, demographic,
 
 The second section introduces the analysis method, this include data collection process and regression models that are chosen for the analysis.
 
-The third section displays the results, and the forth section interprets the results and draws implications. Lastly, this report ends with a conclusion.  
+The third section displays the results, and the forth section interprets the results and draws implications. Lastly, this report ends with a conclusion.
 
 ## Mapping Street Light Poles in Philly
 
-The map below shows the brightness given by the street poles in Philadelphia. Center City has the brightest lights. However, overall, majority of the city is still dark, with lumen sizes below 100. 
-
+The map below shows the brightness given by the street poles in Philadelphia. Center City has the brightest lights. However, overall, majority of the city is still dark, with lumen sizes below 100.
 
 ```{r}
 #Philly_boundary
@@ -264,7 +260,7 @@ ggplot()+
 
 ```
 
-The red dots on the map below are disfunctional lights. We filtered out lights that have 0 as their lumen size and lights that are reported broken by 311 calls. They will be excluded from the analysis.  
+The red dots on the map below are disfunctional lights. We filtered out lights that have 0 as their lumen size and lights that are reported broken by 311 calls. They will be excluded from the analysis.
 
 ```{r}
 #Mapping out dis-functioning lights
@@ -300,7 +296,7 @@ ggplot()+
 The crash data is given by PennDOT on its website. We also collected and caluclated various relevant variables that might be associated with pedestrian crashes in an given area. To summerize, we collected data from:
 
 | (1) PennDOT public crash data 2016 - 2020
-|           a. Crash count 
+|           a. Crash count
 |                       i. Pedestrian crashes during dark conditions and daylight
 |                      ii. Fatal pedestrian crashes in dark conditions
 |                     iii. Fatal pedestrian crashes during daylight
@@ -308,26 +304,26 @@ The crash data is given by PennDOT on its website. We also collected and calucla
 |           b. Driver age
 |           c. Speed Limit
 |           d. Binary variables
-|                       i. Presence of drunk drivers 
-|                      ii. Presence of young drivers 
+|                       i. Presence of drunk drivers
+|                      ii. Presence of young drivers
 |                     iii. Presence of clear weather
 |                      iv. Whether the creash occured on weekend
 |                       v. Pedestrian Gender (Female = 1, Male = 0)
-|
+| 
 | (2) Street Light Poles - OpenData Philly
 |           a. Lumen size
 |           b. Light pole count
-|  
+| 
 | (3) 2020 5-year block level American Community Survey (ACS):
 |           a. Total Population
-|           b. Age (Below 10 and Above 65) 
+|           b. Age (Below 10 and Above 65)
 |           c. Black, White, Asian Population
 |           d. Percent of Black, White, Aisian Population
 |           e. Commute Pattern (People who choose to commute with car versus other modes)
-|  
+| 
 | (4) Philadelphia Tree Inventory 2021
 |           a. Tree Count
-|
+| 
 | (5) Philadelphia Police Department 2016 - 2020
 |           a. Crime Count
 |           b. Crime Rate (based on the ACS population data)
@@ -338,31 +334,23 @@ Part I evaluates the variables that contribute to the possibility of a night ped
 
 ## Binomial Logistic Regression
 
-Part II evaluates binomial outcomes in three ways: 
-  1. The odds of a fatal pedestrian crash versus non-fatal crash in dark conditions.
-  2. The odds of a fatal pedestrian crash versus non-fatal crash during daylight.
-  3. The odds of a pedestrian crash in dark conditions versus non-dark conditions 
+Part II evaluates binomial outcomes in three ways: 1. The odds of a fatal pedestrian crash versus non-fatal crash in dark conditions. 2. The odds of a fatal pedestrian crash versus non-fatal crash during daylight. 3. The odds of a pedestrian crash in dark conditions versus non-dark conditions
 
-The purpose of this analysis is to see if there is really a difference in the factors that contribute to fatal crashes in dark conditions or during daylight. 
+The purpose of this analysis is to see if there is really a difference in the factors that contribute to fatal crashes in dark conditions or during daylight.
 
-In addition to fatal crashes, we also want to see what factors contribute to a dark-condition pedestrian crash the most. 
+In addition to fatal crashes, we also want to see what factors contribute to a dark-condition pedestrian crash the most.
 
-This part of the analysis follows the method of another study by University of Wisconsin and Safe Streets Research & Consulting in California surrounding the issue of night pedestrian safety. 
+This part of the analysis follows the method of another study by University of Wisconsin and Safe Streets Research & Consulting in California surrounding the issue of night pedestrian safety.
 
-We believe that binomial logistic regression is appropriate in this case. Multivariate regression or bi-variate regression cannot deliver accurate results due to limited cases of fatal pedestrian crashes at Philly. 
+We believe that binomial logistic regression is appropriate in this case. Multivariate regression or bi-variate regression cannot deliver accurate results due to limited cases of fatal pedestrian crashes at Philly.
 
 **The variables will be selected through backward selection method and tested by variance inflation factor (vif) to eliminate co-founding variables.**
 
-
-
 ## Fishent
 
-The first step to our analysis is to build a fishnet over Philadelphia. Each cell is 500ft * 500ft. Fishnet creates grids that smooths out the irregular boundaries given by census data. 
-
-
+The first step to our analysis is to build a fishnet over Philadelphia. Each cell is 500ft \* 500ft. Fishnet creates grids that smooths out the irregular boundaries given by census data.
 
 ### Data wrangling
-
 
 #### Light Counts
 
@@ -405,7 +393,7 @@ ggplot() +
 
 ```
 
-It is not surprising that Center City has the highest number of street lights. However, this map does not correspond to Figure 1. North of Center City has 100 to 200 street poles, most of the them are low in lumen sizes. 
+It is not surprising that Center City has the highest number of street lights. However, this map does not correspond to Figure 1. North of Center City has 100 to 200 street poles, most of the them are low in lumen sizes.
 
 #### Crash Counts
 
@@ -536,13 +524,11 @@ ggplot()+
 
 ```
 
-When looking into crashes that happened over dark conditions, the cases were more spread out over the city. 
-
+When looking into crashes that happened over dark conditions, the cases were more spread out over the city.
 
 #### Other data
 
-We wrangled other data and dropped them into fishnet cell. These include:
-For ACS group level data, we attached the data to the center point of the block group, and spatial joined it with the fishnet. These datasets include information on trees, age, race, and population.
+We wrangled other data and dropped them into fishnet cell. These include: For ACS group level data, we attached the data to the center point of the block group, and spatial joined it with the fishnet. These datasets include information on trees, age, race, and population.
 
 We also extracted "flag" variables that we think are most relevant to the analysis. They are crashes related to drinking drivers, young drivers, weather, and weekends.
 
@@ -761,6 +747,7 @@ fishnet13 <-
   st_as_sf()
 
 ```
+
 ```{r speed}
 
 #Speed Limit
@@ -811,6 +798,7 @@ fishnet15 <-
   left_join(fishnet)%>%
   st_as_sf()
 ```
+
 ```{r weekend or not}
 Crash_Ped <-
   Crash_Ped %>%
@@ -886,11 +874,9 @@ fishnet_final2 <-
   
 ```
 
-
-
 ### Correlation
 
-The correlation among variables are displayed in the correlation plot below by Pearson's R. The darker the red, the stronger the positive correlation. 
+The correlation among variables are displayed in the correlation plot below by Pearson's R. The darker the red, the stronger the positive correlation.
 
 ```{r}
 library(ggcorrplot)
@@ -906,10 +892,7 @@ cor(fishnet_nu)%>%
 
 ```
 
-
-
 The correlation plot shows that pedestrian crashes are strongly correlated with crime. The correlation between pedestrian crashes occurred during dark condition and total pedestrian crashes is strong, suggesting that the proportion of night crashes over total crashes is consistent throughout the fishnet.
-
 
 We can look into pedestrian crashes occurred in dark condition and in daylight and other time separately.
 
@@ -1001,15 +984,13 @@ ggplot(fishnet_long_night, aes(value, NightCrash)) +
   theme_map()
 ```
 
-Crime still has the highest correlation with pedestrian crashes at dark conditions. Number of lights has the second strongest correlation. Lumen size, black population, and young drivers ranked the third on correlation strength with dark condition pedestrian crashes. 
-
-
+Crime still has the highest correlation with pedestrian crashes at dark conditions. Number of lights has the second strongest correlation. Lumen size, black population, and young drivers ranked the third on correlation strength with dark condition pedestrian crashes.
 
 # Results
 
 ## Multivariate Regression
 
-Multivariate regression is made with "pedestrian crashes at dark conditions" as the dependent variable. 
+Multivariate regression is made with "pedestrian crashes at dark conditions" as the dependent variable.
 
 ```{r night crash}
 
@@ -1071,23 +1052,21 @@ stargazer(model1,model2,model3,model4, type = "html", title = "Multivariate Anal
 
 In model 1, we used variables without considering the effect of population. In model 2, 3, and 4, we considered population by making all relevant variables into "percent of the population" in each fishnet cell.
 
-Model 4 has all the significant variables. We can see that percent of people commuting without cars has the greatest impact on pedestrian safety. For every percent increase in population commuting without cars, there is an increase of 3.4 crashes in the area. 
+Model 4 has all the significant variables. We can see that percent of people commuting without cars has the greatest impact on pedestrian safety. For every percent increase in population commuting without cars, there is an increase of 3.4 crashes in the area.
 
-Percent of white population and percent of black population are co-founding factors, so we only included percent of Black population in the analysis. Black population is the most significant variable among Black, White, and Asian population. The model shows that for every percent increase in the Black population , the number of crashes will increase by 1.0 in a given area. 
+Percent of white population and percent of black population are co-founding factors, so we only included percent of Black population in the analysis. Black population is the most significant variable among Black, White, and Asian population. The model shows that for every percent increase in the Black population , the number of crashes will increase by 1.0 in a given area.
 
 Interestingly, according to the model, a lower number of elders above the age 60 is associated with a higher number of crashes. Every increase in the number of children is associated with an increase of 2 pcases of pedestrian crashes in dark conditions.
 
-One would expect that the lumen size and light counts would be negatively associated with pedestrian crashes over dark conditions. Our result shows differently. The result shows that, though very sightly, the higher the mean lumen size in a fishnet cell, the more chance of pedestrian crashes over dark conditions, while holding other variables constant. 
+One would expect that the lumen size and light counts would be negatively associated with pedestrian crashes over dark conditions. Our result shows differently. The result shows that, though very sightly, the higher the mean lumen size in a fishnet cell, the more chance of pedestrian crashes over dark conditions, while holding other variables constant.
 
-Tree count demonstrates a negative association with night pedestrian crashes. This means a lower number of trees contributes to a higher number of crashes in a given area. 
+Tree count demonstrates a negative association with night pedestrian crashes. This means a lower number of trees contributes to a higher number of crashes in a given area.
 
-In addition, our results show that areas with higher amount of crime is significant associated with higher amount of pedestrian crashes in dark conditions. 
+In addition, our results show that areas with higher amount of crime is significant associated with higher amount of pedestrian crashes in dark conditions.
 
 The number of fatal deaths occur at night is limited. Instead of multivariate, we will run a binomial logit model.
 
 Overall, the R-squared for the final model is 31%, which we believe it shows a good fit for explaining real-life data where so many circumstances could be involved.
-
-
 
 ### Moran's I
 
@@ -1133,13 +1112,11 @@ do.call(grid.arrange,c(varList, ncol = 4, top = "Local Morans I statistics, Nigh
 
 ```
 
-Moran's I indicates that there are some very strong clustering of crashes (p-value < 0.0000001). This might show some neighborhood effects. Certainly there is a clustering at the Center City and along major streets, such as Market Street and Board Street. 
-
-
+Moran's I indicates that there are some very strong clustering of crashes (p-value \< 0.0000001). This might show some neighborhood effects. Certainly there is a clustering at the Center City and along major streets, such as Market Street and Board Street.
 
 ## Binomial Logit Model
 
-All models are cleaned and trimmed by backward selection methods to have the lowest Akaike Information Criterion (AIC) number, as well as Variance Inflation Factor tests to make sure there is no confounding factors. Please unfold the code to see more details. 
+All models are cleaned and trimmed by backward selection methods to have the lowest Akaike Information Criterion (AIC) number, as well as Variance Inflation Factor tests to make sure there is no confounding factors. Please unfold the code to see more details.
 
 ### Fatal pedestrian crashes during dark conditions
 
@@ -1250,17 +1227,15 @@ exp(coef(model_bi_3))
 
 The binomial logit model shows that drunk diver and speed limit are the most significant factors to predict the possibility of a fatal pedestrian crash (versus crashes without fatal outcomes) at night.
 
-If the driver were drunk, the odds of a pedestrian having a fatal outcome would be almost five times more likely comparing to a normal driver. 
+If the driver were drunk, the odds of a pedestrian having a fatal outcome would be almost five times more likely comparing to a normal driver.
 
 With every increase in speed limit on the road, the odds of a fatal pedestrian crash would increase by 9%.
 
-Fatal pedestrian at night is also strongly related to tree counts. With each increase in the number of tree within the fishnet area of the crashes, the odds of fatal pedestrian crash is reduced by 0.4%. 
+Fatal pedestrian at night is also strongly related to tree counts. With each increase in the number of tree within the fishnet area of the crashes, the odds of fatal pedestrian crash is reduced by 0.4%.
 
-The percent of Black population is also a significant factor. In Philadelphia, most fatal crashes occurred in places where the majority of the population is white. It is worth to note that with every increase in the percent of Black population, the odds of a fatal pedestrian crash is reduced by 64%. 
+The percent of Black population is also a significant factor. In Philadelphia, most fatal crashes occurred in places where the majority of the population is white. It is worth to note that with every increase in the percent of Black population, the odds of a fatal pedestrian crash is reduced by 64%.
 
-Surprisingly, the lumen size, though shows a significant correlation with fatal pedestrian crash, is positively related to fatal pedestrian crashes. This means, with every increase of lumen size in the crash area, the odds of a fatal pedestrian crash is increased by 0.77. The result is counterintuatitive, as it is expected that the darker the area, the more likely the fatal crash would occur. 
-
-
+Surprisingly, the lumen size, though shows a significant correlation with fatal pedestrian crash, is positively related to fatal pedestrian crashes. This means, with every increase of lumen size in the crash area, the odds of a fatal pedestrian crash is increased by 0.77. The result is counterintuatitive, as it is expected that the darker the area, the more likely the fatal crash would occur.
 
 ### Fatal pedestrian crashes during the day
 
@@ -1320,11 +1295,9 @@ exp(coef(model_bi3_3))
 
 ```
 
-Drunk drivers and speed limit are also the two significant factors related to fatal pedestrian crashes during the day. The odds of a fatal pedestrian crash is six times higher when a drunk driver involved. Speed limit becomes a more significant factor during the day accounting for fatal pedestrian crashes. For every increase in speed limit, the odds of fatal pedestrian crashes during the day is increased by 11%. 
+Drunk drivers and speed limit are also the two significant factors related to fatal pedestrian crashes during the day. The odds of a fatal pedestrian crash is six times higher when a drunk driver involved. Speed limit becomes a more significant factor during the day accounting for fatal pedestrian crashes. For every increase in speed limit, the odds of fatal pedestrian crashes during the day is increased by 11%.
 
-Percent of population without cars become the most significant factors in this case. For every percent increase in population without car in the areas where crashes occur, the odds of them being fatal are almost 1074% higher. 
-
-
+Percent of population without cars become the most significant factors in this case. For every percent increase in population without car in the areas where crashes occur, the odds of them being fatal are almost 1074% higher.
 
 ### The odds of pedestrian crashes at night versus during the day
 
@@ -1373,41 +1346,30 @@ exp(coef(model_bi2_2))
 
 When we look at the possibility for a pedestrian crash at night, drunk driver, speed limit, percent of population, percent of population commuting without cars, and tree counts again appear to be significant variables. A drunk driver increases the odds of a night pedestrian night crash by 327%. Every increase in speed limit increases the odd by 4%. It is interesting to note that black population here is more vulnerable to crash at night: every percent increase in black population increases the odd of night pedestrian by 25%. In addition, every percent increase in population commuting without cars, the odds increase by 214%. Finally, every increase in tree count is associated with a reduction of 0.05% in pedestrian crashes at night.
 
-Some new variables have become significant when we look at all the pedestrian crashes together. A clear, sunny weather is associated with a 40% reduction in odds of night pedestrian crashes. Every percent increase in number of children below age 10 increases the odds by 109%. We expect that age would have a negative association with the odds of night pedestrian crashes. Based on the model, however, every increase in the age of driver is associated with a 0.25% increase in the odds of a night pedestrian crash. 
+Some new variables have become significant when we look at all the pedestrian crashes together. A clear, sunny weather is associated with a 40% reduction in odds of night pedestrian crashes. Every percent increase in number of children below age 10 increases the odds by 109%. We expect that age would have a negative association with the odds of night pedestrian crashes. Based on the model, however, every increase in the age of driver is associated with a 0.25% increase in the odds of a night pedestrian crash.
 
 A night pedestrian crash is more likely during weekend with an increased odds of 18%.
-
-
-
-
 
 # Discussion
 
 We summarized the results into 7 takeaways：
 
-1. Drunk driving and speed limits still appear to be the most significant variables throughout the analysis. They increase the risk of pedestrian crashes and fatal pedestrian crashes in both dark condition and during daylight.
+1.  Drunk driving and speed limits still appear to be the most significant variables throughout the analysis. They increase the risk of pedestrian crashes and fatal pedestrian crashes in both dark condition and during daylight.
 
-2. Our results also finds the significance of *tree count* in relation to pedestrian safety in dark conditions. Higher number of trees are associated with lower number of pedestrian crashes both in dark conditions and during daylight. This might implies that trees might contribute to pedestrian safety beyond asethetic and environmental values. 
+2.  Our results also finds the significance of *tree count* in relation to pedestrian safety in dark conditions. Higher number of trees are associated with lower number of pedestrian crashes both in dark conditions and during daylight. This might implies that trees might contribute to pedestrian safety beyond asethetic and environmental values.
 
-3. Areas with higher percentage of commuters who use bike, walk, and have significantly higher chance to pedestrian crashes overall. This, **however**, is not a significant variable when comes to fatal pedestrian crashes in dark conditions.
+3.  Areas with higher percentage of commuters who use bike, walk, and have significantly higher chance to pedestrian crashes overall. This, **however**, is not a significant variable when comes to fatal pedestrian crashes in dark conditions.
 
-4. Areas with higher percentage of Black population are more prone to night pedestrian crash. Nevertheless, these crashes have less chance to turn into fatal crashes. 
+4.  Areas with higher percentage of Black population are more prone to night pedestrian crash. Nevertheless, these crashes have less chance to turn into fatal crashes.
 
-5. Lumen size is a significant variable when looking at pedestrian crash cases at night. The results show that the higher the lumen size, the more pedestrian crashes and fatal pedestrian crashes occur in dark conditions. One reason could be that night pedestrian crashes occur along main roads were already pretty well lit, this means there are other factors more significant than brightness that contribute to pedestrian crashes at night. 
+5.  Lumen size is a significant variable when looking at pedestrian crash cases at night. The results show that the higher the lumen size, the more pedestrian crashes and fatal pedestrian crashes occur in dark conditions. One reason could be that night pedestrian crashes occur along main roads were already pretty well lit, this means there are other factors more significant than brightness that contribute to pedestrian crashes at night.
 
-6. Pedestrian gender is not a significant variable based on our results. There might be an assumption that women are more volunerable to crashes, but our models do not show that. 
+6.  Pedestrian gender is not a significant variable based on our results. There might be an assumption that women are more volunerable to crashes, but our models do not show that.
 
-7. Areas with more children are more prone to pedestrian crashes at night. 
+7.  Areas with more children are more prone to pedestrian crashes at night.
 
+# Conclusion
 
+We acknowledge many limitations of this study. First, the size of the data set might not allow substantive analysis. The fatal crashes at night between 2016 - 2020 in Philadelphia only counts to 119 cases. This could be solved by expanding the study time frame or expanding the geography of the study area. Second, the models do not account for neighborhood effects. Though we do account factors such as racial composition, age, and crime, the analysis could also include variables such as income and car ownership that have showed tendency of clustering. The next step is to have a spacial generalizability test.
 
-
-
-
-# Conclusion 
-
-We acknowledge many limitations of this study. First, the size of the data set might not allow substantive analysis. The fatal crashes at night between 2016 - 2020 in Philadelphia only counts to 119 cases. This could be solved by expanding the study time frame or expanding the geography of the study area. Second, the models do not account for neighborhood effects. Though we do account factors such as racial composition, age, and crime, the analysis could also include variables such as income and car ownership that have showed tendency of clustering. The next step is to have a spacial generalizability test. 
-
-Our results may provide some insights into pedestrian safety in dark conditions. First, tree planting might have values beyond environmental or aesthetic reasons. As shown by the results, it is related to pedestrian safety at night. So far, very limited literature have looked into the relation of greens related to pedestrian safety. Second, we found out that areas with higher percentage of Black population have higher risk of pedestrian crashes. This finding aligns with most of the literature. These crashes are, however, not fatal. In fact, the higher percentage of Black population is related significantly to lower number of fatal crashes in dark conditions. Third, our results do show that places with high non-vehicular commuters demonstrate strong association high risk in pedestrian crashes, which is not too surprising. Again, quality infrastructure in these places are required to reduce pedestrian risks, as most people do not have other options but required to walk, bike, or take public transit to work. 
-
-
+Our results may provide some insights into pedestrian safety in dark conditions. First, tree planting might have values beyond environmental or aesthetic reasons. As shown by the results, it is related to pedestrian safety at night. So far, very limited literature have looked into the relation of greens related to pedestrian safety. Second, we found out that areas with higher percentage of Black population have higher risk of pedestrian crashes. This finding aligns with most of the literature. These crashes are, however, not fatal. In fact, the higher percentage of Black population is related significantly to lower number of fatal crashes in dark conditions. Third, our results do show that places with high non-vehicular commuters demonstrate strong association high risk in pedestrian crashes, which is not too surprising. Again, quality infrastructure in these places are required to reduce pedestrian risks, as most people do not have other options but required to walk, bike, or take public transit to work.
