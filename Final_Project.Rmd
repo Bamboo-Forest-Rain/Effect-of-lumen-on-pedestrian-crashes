@@ -14,6 +14,11 @@ output:
     fig_align: 'center'
   pdf_document:
     toc: yes
+  knit: (function(input_file, encoding) {
+    out_dir <- 'docs';
+    rmarkdown::render(input_file,
+      encoding=encoding,
+      output_file=file.path(dirname(input_file), out_dir, 'index.html'))})
 ---
 
 ```{r setup, include=FALSE}
@@ -1058,10 +1063,12 @@ summary(model4)
 
 ```
 
-```{r, result = 'asis'}
-stargazer(model1,model2,model3,model4, type = "text",style = "ajps")
+```{r, results = 'asis'}
+
+stargazer(model1,model2,model3,model4, type = "html", title = "Multivariate Analysis on Variables Contributing to Night Crashes", dep.var.labels = c("Night Crashes"))
 
 ```
+
 In model 1, we used variables without considering the effect of population. In model 2, 3, and 4, we considered population by making all relevant variables into "percent of the population" in each fishnet cell.
 
 Model 4 has all the significant variables. We can see that percent of people commuting without cars has the greatest impact on pedestrian safety. For every percent increase in population commuting without cars, there is an increase of 3.4 crashes in the area. 
@@ -1134,7 +1141,7 @@ Moran's I indicates that there are some very strong clustering of crashes (p-val
 
 All models are cleaned and trimmed by backward selection methods to have the lowest Akaike Information Criterion (AIC) number, as well as Variance Inflation Factor tests to make sure there is no confounding factors. Please unfold the code to see more details. 
 
-### Fatal pedestrian crashes at night
+### Fatal pedestrian crashes during dark conditions
 
 ```{r Mark night and fatal crash}
 #Night and Fatal crashes marked with 1
@@ -1230,7 +1237,7 @@ vif(model_bi_3)
 
 ```{r, results = 'asis'}
 
-stargazer(model_bi_1,model_bi_2,model_bi_3, type = "html", column.sep.width = "10pt", align=TRUE)
+stargazer(model_bi_1,model_bi_2,model_bi_3, type = "html", column.sep.width = "10pt", align=TRUE, title = "Binomial Logit Regression on Fatal Pedestrian Crashes during Dark Conditions", dep.var.labels = "Count of Fatal Crashes during Dark Conditions")
 
 ```
 
@@ -1302,7 +1309,7 @@ vif(model_bi3_3)
 
 ```{r, results = 'asis'}
 
-stargazer(model_bi_1,model_bi_2,model_bi_3, type = "html", align=TRUE)
+stargazer(model_bi3_1,model_bi3_2,model_bi3_3, type = "html", align=TRUE, title = "Binomial Logit Regression on Fatal Pedestrian Crashes during Daylight", dep.var.labels = "Count of Fatal Crashes during Daylight")
 
 ```
 
@@ -1319,7 +1326,7 @@ Percent of population without cars become the most significant factors in this c
 
 
 
-### The odds of pedestrian crashes at night versus druing the day
+### The odds of pedestrian crashes at night versus during the day
 
 ```{r Nighe Pedestrian Crashes}
 z3 <- crash_person_all %>%
@@ -1353,7 +1360,7 @@ vif(model_bi2_2)
 
 ```{r results = 'asis'}
 
-stargazer(model_bi2_1, model_bi2_2, type = "html", align=TRUE)
+stargazer(model_bi2_1, model_bi2_2, type = "html", align=TRUE, title = "Binomial Logit Regression on Pedestrian Crashes at Night Versus during the Day", dep.var.labels = "Count of Pedestrian Crashes")
 
 ```
 
